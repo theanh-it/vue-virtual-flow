@@ -1,0 +1,82 @@
+{
+  "name": "vue-virtual-flow",
+  "version": "0.0.1",
+  "description": "Typed, accessible virtual lists, feeds and carousels for Vue 3.",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.vi.md"
+  ],
+  "main": "./dist/vue-virtual-flow.cjs",
+  "module": "./dist/vue-virtual-flow.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/vue-virtual-flow.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/vue-virtual-flow.cjs"
+      }
+    },
+    "./style.css": "./dist/vue-virtual-flow.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev": "vite --config playground/vite.config.ts",
+    "build": "bun run typecheck && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "typecheck:package": "tsc -p tests/package-consumer/tsconfig.esm.json --noEmit && tsc -p tests/package-consumer/tsconfig.cjs.json --noEmit",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:watch": "vitest",
+    "lint:package": "publint && attw --pack . --exclude-entrypoints style.css",
+    "check": "bun run test && bun run build && bun run typecheck:package && bun run lint:package && bun run test:browser",
+    "prepublishOnly": "bun run check"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "virtual-list",
+    "virtual-scroll",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "Nguyen The Anh <theanhit.com@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theanh-it/vue-virtual-scroll.git"
+  },
+  "bugs": {
+    "url": "https://github.com/theanh-it/vue-virtual-scroll/issues"
+  },
+  "homepage": "https://github.com/theanh-it/vue-virtual-scroll#readme",
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@faker-js/faker": "^10.5.0",
+    "@playwright/test": "1.62.1",
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^25.0.1",
+    "publint": "0.3.22",
+    "typescript": "^5.7.2",
+    "unplugin-dts": "1.0.3",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8",
+    "vue": "^3.5.13",
+    "vue-router": "^5.2.0",
+    "vue-tsc": "^2.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "bun@1.2.8"
+}

@@ -1,0 +1,479 @@
+:root {
+  color: #17202a;
+  background: #f4f7fb;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(960px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid #dfe5ed;
+}
+
+.brand {
+  color: #17202a;
+  font-size: 1.05rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.app-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.app-header nav a {
+  padding: 0.55rem 0.75rem;
+  color: #5a6572;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-header nav a:hover,
+.app-header nav a.router-link-active {
+  color: #3157d5;
+  background: #e9edff;
+}
+
+button {
+  padding: 0.75rem 1rem;
+  color: white;
+  background: #3157d5;
+  border: 0;
+  border-radius: 0.6rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+main {
+  width: min(760px, calc(100% - 2rem));
+  margin: 4rem auto;
+}
+
+.heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  letter-spacing: -0.04em;
+}
+
+p {
+  color: #5a6572;
+}
+
+.eyebrow {
+  margin-bottom: 0.5rem;
+  color: #3157d5;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vue-virtual-scroll,
+.vue-dynamic-virtual-scroll,
+.vue-window-dynamic-virtual-scroll,
+.vue-chat-virtual-scroll {
+  background: white;
+  border: 1px solid #dfe5ed;
+  border-radius: 0.8rem;
+  box-shadow: 0 20px 50px rgb(35 50 75 / 8%);
+}
+
+.short-media-demo {
+  max-width: 24rem;
+  margin: 0 auto;
+  background: #0f172a;
+  border: 1px solid #25334d;
+  border-radius: 1rem;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 22%);
+}
+
+.short-media-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 2rem;
+  color: white;
+  text-align: center;
+}
+
+.short-media-card span {
+  margin-bottom: 0.8rem;
+  padding: 0.3rem 0.55rem;
+  background: rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.short-media-card strong {
+  font-size: 2rem;
+}
+
+.short-media-card small {
+  margin-top: 0.45rem;
+  color: rgb(255 255 255 / 72%);
+}
+
+.short-media-card p {
+  max-width: 18rem;
+  margin: 1rem 0 0;
+  color: rgb(255 255 255 / 82%);
+  line-height: 1.5;
+}
+
+.carousel-heading {
+  align-items: center;
+}
+
+.carousel-settings {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.carousel-settings label {
+  display: grid;
+  gap: 0.35rem;
+  color: #5a6572;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.carousel-settings input {
+  width: 5rem;
+  padding: 0.6rem;
+  border: 1px solid #cfd7e3;
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+.vue-virtual-carousel {
+  background: #0f172a;
+  border: 1px solid #25334d;
+  border-radius: 1rem;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 18%);
+}
+
+.carousel-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  padding: 1.25rem;
+  color: white;
+  border: 3px solid transparent;
+  border-radius: 0.8rem;
+  transition: border-color 180ms ease;
+}
+
+.carousel-card--active {
+  border-color: rgb(255 255 255 / 72%);
+}
+
+.carousel-card span {
+  width: fit-content;
+  margin-bottom: auto;
+  padding: 0.25rem 0.45rem;
+  background: rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.carousel-card strong {
+  font-size: 1.15rem;
+}
+
+.carousel-card small {
+  margin-top: 0.3rem;
+  color: rgb(255 255 255 / 76%);
+}
+
+.carousel-card p {
+  display: -webkit-box;
+  margin: 0.75rem 0 0;
+  overflow: hidden;
+  color: rgb(255 255 255 / 84%);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.carousel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.carousel-actions span {
+  color: #5a6572;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.secondary-button {
+  color: #3157d5;
+  background: #e9edff;
+}
+
+.chat-message {
+  display: flex;
+  padding: 0.45rem 1rem;
+}
+
+.chat-message > div {
+  width: fit-content;
+  max-width: 78%;
+  padding: 0.75rem 0.9rem;
+  background: #f0f3f8;
+  border-radius: 0.9rem 0.9rem 0.9rem 0.2rem;
+}
+
+.chat-message--own {
+  justify-content: flex-end;
+}
+
+.chat-message--own > div {
+  color: white;
+  background: #3157d5;
+  border-radius: 0.9rem 0.9rem 0.2rem;
+}
+
+.chat-message--media > div {
+  width: min(88%, 32rem);
+}
+
+.chat-message strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.chat-message p {
+  margin: 0;
+  color: inherit;
+  line-height: 1.45;
+}
+
+.chat-message figure {
+  margin: 0;
+}
+
+.chat-message img,
+.chat-message video {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  border-radius: 0.6rem;
+  background: #dfe5ed;
+  object-fit: cover;
+}
+
+.chat-message video {
+  aspect-ratio: 16 / 9;
+}
+
+.chat-message figcaption {
+  margin-top: 0.65rem;
+  line-height: 1.45;
+}
+
+.dynamic-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.scroll-control {
+  flex: 0 0 auto;
+}
+
+.scroll-control label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: #5a6572;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.scroll-control > div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.scroll-control input {
+  width: 7rem;
+  padding: 0.7rem;
+  border: 1px solid #cfd7e3;
+  border-radius: 0.6rem;
+  font: inherit;
+}
+
+.load-more-status {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  min-width: 7.5rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border: 1px solid #dfe5ed;
+  border-radius: 0.6rem;
+  text-align: right;
+}
+
+.load-more-status span {
+  color: #768394;
+  font-size: 0.8rem;
+}
+
+.inline-loader {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.inline-loader span {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #c7d2fe;
+  border-top-color: #3157d5;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 100%;
+  padding: 0 1rem;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.index {
+  width: 3rem;
+  color: #8390a0;
+  font-variant-numeric: tabular-nums;
+}
+
+.user-row strong,
+.user-row small {
+  display: block;
+}
+
+.update-row {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.update-row > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.update-row h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+.update-row img {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 320px;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 0.6rem;
+  background: #edf0f4;
+}
+
+.update-row p {
+  margin: 0.75rem 0 0;
+  line-height: 1.55;
+}
+
+.user-row small {
+  margin-top: 0.2rem;
+  color: #768394;
+}
+
+@media (max-width: 600px) {
+  main {
+    margin-top: 2rem;
+  }
+
+  .heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .dynamic-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
