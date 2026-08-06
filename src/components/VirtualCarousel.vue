@@ -33,6 +33,10 @@ const props = withDefaults(
     hasMore?: boolean
     loading?: boolean
     loadMoreThreshold?: number
+    autoplay?: boolean
+    autoplayDelay?: number
+    autoplayLoop?: boolean
+    pauseOnHover?: boolean
   }>(),
   {
     activeIndex: 0,
@@ -46,6 +50,10 @@ const props = withDefaults(
     hasMore: false,
     loading: false,
     loadMoreThreshold: 2,
+    autoplay: false,
+    autoplayDelay: 3000,
+    autoplayLoop: true,
+    pauseOnHover: true,
   },
 )
 
@@ -72,6 +80,9 @@ const measuredWidth = ref(0)
 const currentIndex = ref(0)
 let resizeObserver: ResizeObserver | undefined
 let lastLoadMoreItemCount = -1
+let autoplayTimer: ReturnType<typeof setTimeout> | undefined
+let programmaticScrollTarget: number | undefined
+const isHovering = ref(false)
 const { getItemKey } = useItemKey<T>({
   componentName: 'VirtualCarousel',
   items: () => props.items,
@@ -117,6 +128,10 @@ const normalizedLoadMoreThreshold = computed(() =>
     ),
   ),
 )
+const normalizedAutoplayDelay = computed(() => {
+  if (!Number.isFinite(props.autoplayDelay)) return 3000
+  return Math.max(1, props.autoplayDelay)
+})
 const viewportWidth = computed(() => Math.max(0, measuredWidth.value))
 const itemWidth = computed(() => {
   if (viewportWidth.value <= 0) return 0
@@ -233,6 +248,10 @@ function updateCurrentIndex(index: number) {
   if (nextIndex === 0) emit('reachStart')
   if (nextIndex === maximumIndex.value) emit('reachEnd')
   maybeEmitLoadMore()
+
+  if (props.autoplay && !isHovering.value) {
+    startAutoplay()
+  }
 }
 
 function setNativeScrollPosition(
@@ -263,6 +282,7 @@ function scrollToIndex(
       ? 'auto'
       : options.behavior
 
+  programmaticScrollTarget = behavior === 'smooth' ? nextIndex : undefined
   updateCurrentIndex(nextIndex)
   setNativeScrollPosition(nextIndex * itemStep.value, {
     ...options,
@@ -284,10 +304,56 @@ function previous(behavior: ScrollBehavior = 'smooth') {
   )
 }
 
+function startAutoplay() {
+  stopAutoplay()
+
+  if (!props.autoplay || props.items.length === 0) return
+
+  autoplayTimer = setTimeout(() => {
+    const isAtEnd = currentIndex.value >= maximumIndex.value
+    if (isAtEnd) {
+      if (props.autoplayLoop) {
+        scrollToIndex(0, { behavior: 'smooth' })
+      } else {
+        stopAutoplay()
+      }
+    } else {
+      next('smooth')
+    }
+  }, normalizedAutoplayDelay.value)
+}
+
+function stopAutoplay() {
+  if (autoplayTimer !== undefined) {
+    clearTimeout(autoplayTimer)
+    autoplayTimer = undefined
+  }
+}
+
+function handleMouseEnter() {
+  isHovering.value = true
+  if (props.pauseOnHover) stopAutoplay()
+}
+
+function handleMouseLeave() {
+  isHovering.value = false
+  if (props.autoplay) startAutoplay()
+}
+
+function cancelProgrammaticScroll() {
+  programmaticScrollTarget = undefined
+}
+
 function handleScroll(event: Event) {
   if (itemStep.value <= 0) return
 
   const scrollLeft = (event.currentTarget as HTMLElement).scrollLeft
+  if (programmaticScrollTarget !== undefined) {
+    const targetLeft = programmaticScrollTarget * itemStep.value
+    if (Math.abs(scrollLeft - targetLeft) > 1) return
+    programmaticScrollTarget = undefined
+  }
+
   updateCurrentIndex(Math.round(scrollLeft / itemStep.value))
 }
 
@@ -329,6 +395,7 @@ watch(
     const nextIndex = normalizeIndex(index)
     if (nextIndex === currentIndex.value) return
 
+    cancelProgrammaticScroll()
     currentIndex.value = nextIndex
     await nextTick()
     setNativeScrollPosition(nextIndex * itemStep.value)
@@ -357,6 +424,9 @@ watch(
     await nextTick()
     setNativeScrollPosition(nextIndex * itemStep.value)
     maybeEmitLoadMore()
+    if (props.autoplay && props.items.length > 0 && !isHovering.value) {
+      startAutoplay()
+    }
   },
 )
 
@@ -373,6 +443,50 @@ watch(
   },
 )
 
+watch(
+  () => props.autoplay,
+  (enabled) => {
+    if (enabled && !isHovering.value) {
+      startAutoplay()
+    } else {
+      stopAutoplay()
+    }
+  },
+)
+
+watch(
+  () => props.autoplayDelay,
+  () => {
+    if (props.autoplay && !isHovering.value) {
+      startAutoplay()
+    }
+  },
+)
+
+watch(
+  () => props.autoplayLoop,
+  (loop) => {
+    if (!props.autoplay || isHovering.value) return
+
+    if (!loop && currentIndex.value >= maximumIndex.value) {
+      stopAutoplay()
+    } else {
+      startAutoplay()
+    }
+  },
+)
+
+watch(
+  () => props.pauseOnHover,
+  (pauseOnHover) => {
+    if (pauseOnHover && isHovering.value) {
+      stopAutoplay()
+    } else if (!pauseOnHover && props.autoplay) {
+      startAutoplay()
+    }
+  },
+)
+
 onMounted(async () => {
   updateMeasuredWidth()
 
@@ -384,16 +498,23 @@ onMounted(async () => {
   await nextTick()
   setNativeScrollPosition(currentIndex.value * itemStep.value)
   maybeEmitLoadMore()
+
+  if (props.autoplay) {
+    startAutoplay()
+  }
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  stopAutoplay()
 })
 
 defineExpose<VirtualCarouselExpose>({
   next,
   previous,
   scrollToIndex,
+  startAutoplay,
+  stopAutoplay,
 })
 </script>
 
@@ -407,7 +528,11 @@ defineExpose<VirtualCarouselExpose>({
     :aria-label="ariaLabel"
     tabindex="0"
     @scroll.passive="handleScroll"
+    @pointerdown="cancelProgrammaticScroll"
+    @wheel.passive="cancelProgrammaticScroll"
     @keydown="handleKeydown"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
   >
     <div
       v-if="items.length"

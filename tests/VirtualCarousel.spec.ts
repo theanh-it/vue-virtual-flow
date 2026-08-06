@@ -37,6 +37,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   resizeCallback = undefined
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -214,6 +215,33 @@ describe('VirtualCarousel', () => {
     })
   })
 
+  it('ignores intermediate events from programmatic smooth scrolling', async () => {
+    const wrapper = mount(TestVirtualCarousel, {
+      props: {
+        items,
+        slidesPerView: 3,
+        gap: 20,
+        buffer: 2,
+        height: 300,
+        itemKey: 'id',
+      },
+    })
+    await setViewportWidth(wrapper, 940)
+    const viewport = wrapper.get('.vue-virtual-carousel')
+    viewport.element.scrollTo = vi.fn()
+
+    wrapper.vm.next()
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+
+    viewport.element.scrollLeft = 0
+    await viewport.trigger('scroll')
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+
+    viewport.element.scrollLeft = 320
+    await viewport.trigger('scroll')
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+  })
+
   it('keeps the active slide aligned when the viewport is resized', async () => {
     const wrapper = mount(TestVirtualCarousel, {
       props: {
@@ -307,6 +335,73 @@ describe('VirtualCarousel', () => {
         wrapper.findAll('.vue-virtual-carousel__item').length,
       ).toBeLessThanOrEqual(8)
     }
+  })
+
+  it('starts autoplay when items are loaded after mount', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(TestVirtualCarousel, {
+      props: {
+        items: [],
+        autoplay: true,
+        autoplayDelay: 100,
+      },
+    })
+
+    await setViewportWidth(wrapper, 900)
+    await wrapper.setProps({ items: items.slice(0, 3) })
+    await nextTick()
+    await nextTick()
+
+    vi.advanceTimersByTime(100)
+    await nextTick()
+
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+  })
+
+  it('reacts when pause-on-hover is disabled while hovered', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(TestVirtualCarousel, {
+      props: {
+        items: items.slice(0, 3),
+        autoplay: true,
+        autoplayDelay: 100,
+        pauseOnHover: true,
+      },
+    })
+
+    await setViewportWidth(wrapper, 900)
+    await wrapper.get('.vue-virtual-carousel').trigger('mouseenter')
+    vi.advanceTimersByTime(200)
+    expect(wrapper.emitted('update:activeIndex')).toBeUndefined()
+
+    await wrapper.setProps({ pauseOnHover: false })
+    vi.advanceTimersByTime(100)
+    await nextTick()
+
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+  })
+
+  it('restarts autoplay when looping is enabled at the end', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(TestVirtualCarousel, {
+      props: {
+        items: items.slice(0, 3),
+        autoplay: true,
+        autoplayDelay: 100,
+        autoplayLoop: false,
+      },
+    })
+
+    await setViewportWidth(wrapper, 900)
+    vi.advanceTimersByTime(300)
+    await nextTick()
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1], [2]])
+
+    await wrapper.setProps({ autoplayLoop: true })
+    vi.advanceTimersByTime(100)
+    await nextTick()
+
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1], [2], [0]])
   })
 
   it('renders the empty slot', () => {

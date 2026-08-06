@@ -629,6 +629,10 @@ five slides are normally mounted in the middle of the collection.
 | `hasMore` | `boolean` | `false` | Indicates that another page can be loaded. |
 | `loading` | `boolean` | `false` | Prevents duplicate `load-more` requests. |
 | `loadMoreThreshold` | `number` | `2` | Remaining slides after the visible group that trigger `load-more`. |
+| `autoplay` | `boolean` | `false` | Enables automatic slide progression. |
+| `autoplayDelay` | `number` | `3000` | Delay in milliseconds between automatic transitions; values below `1` are clamped and non-finite values use the default. |
+| `autoplayLoop` | `boolean` | `true` | Returns to the first slide when reaching the end. |
+| `pauseOnHover` | `boolean` | `true` | Pauses autoplay when the carousel is hovered. |
 
 #### Slots and events
 
@@ -649,9 +653,47 @@ five slides are normally mounted in the middle of the collection.
 | `next(behavior?)` | Advances by `slidesToScroll`; defaults to smooth scrolling. |
 | `previous(behavior?)` | Moves back by `slidesToScroll`. |
 | `scrollToIndex(index, options?)` | Makes the index the first visible slide. |
+| `startAutoplay()` | Starts or restarts automatic slide progression. |
+| `stopAutoplay()` | Stops automatic slide progression. |
 
 The viewport supports Arrow Left/Right, Page Up/Down, Home, and End. A
 long-distance smooth jump becomes immediate so virtualized gaps are not shown.
+
+#### Autoplay example
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { VirtualCarousel, type VirtualCarouselExpose } from 'vue-virtual-flow'
+
+const carousel = ref<VirtualCarouselExpose>()
+const products = ref(loadProducts())
+</script>
+
+<template>
+  <VirtualCarousel
+    ref="carousel"
+    :items="products"
+    :slides-per-view="3"
+    :autoplay="true"
+    :autoplay-delay="3000"
+    :autoplay-loop="true"
+    :pause-on-hover="true"
+  >
+    <template #default="{ item }">
+      <ProductCard :product="item" />
+    </template>
+  </VirtualCarousel>
+
+  <button @click="carousel?.stopAutoplay()">Pause</button>
+  <button @click="carousel?.startAutoplay()">Resume</button>
+</template>
+```
+
+Autoplay also starts when an initially empty `items` collection receives data.
+`stopAutoplay()` pauses the timer and `startAutoplay()` resumes it while the
+`autoplay` prop remains enabled. Changes to `autoplayDelay`, `autoplayLoop`, and
+`pauseOnHover` take effect at runtime.
 
 ## Shared recipes
 

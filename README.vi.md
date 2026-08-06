@@ -626,6 +626,10 @@ thường tối đa năm slide được mount ở giữa collection.
 | `hasMore` | `boolean` | `false` | Cho biết vẫn còn trang dữ liệu tiếp theo. |
 | `loading` | `boolean` | `false` | Ngăn request `load-more` bị lặp. |
 | `loadMoreThreshold` | `number` | `2` | Số slide còn lại sau vùng nhìn để kích hoạt `load-more`. |
+| `autoplay` | `boolean` | `false` | Bật chế độ tự động chuyển slide. |
+| `autoplayDelay` | `number` | `3000` | Thời gian chờ giữa các lần tự động chuyển, tính bằng mili giây; giá trị dưới `1` được giới hạn và giá trị không hữu hạn dùng mặc định. |
+| `autoplayLoop` | `boolean` | `true` | Quay lại slide đầu tiên khi đến cuối. |
+| `pauseOnHover` | `boolean` | `true` | Tạm dừng autoplay khi con trỏ nằm trên carousel. |
 
 #### Slots và events
 
@@ -646,9 +650,47 @@ thường tối đa năm slide được mount ở giữa collection.
 | `next(behavior?)` | Tiến thêm `slidesToScroll` slide; mặc định cuộn mượt. |
 | `previous(behavior?)` | Lùi lại `slidesToScroll` slide. |
 | `scrollToIndex(index, options?)` | Đưa index thành slide đầu tiên trong vùng nhìn. |
+| `startAutoplay()` | Bắt đầu hoặc khởi động lại quá trình tự động chuyển slide. |
+| `stopAutoplay()` | Dừng quá trình tự động chuyển slide. |
 
 Viewport hỗ trợ Arrow Left/Right, Page Up/Down, Home và End. Smooth scroll ở
 khoảng cách xa tự chuyển thành tức thời để không lộ khoảng trống virtualized.
+
+#### Ví dụ autoplay
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { VirtualCarousel, type VirtualCarouselExpose } from 'vue-virtual-flow'
+
+const carousel = ref<VirtualCarouselExpose>()
+const products = ref(loadProducts())
+</script>
+
+<template>
+  <VirtualCarousel
+    ref="carousel"
+    :items="products"
+    :slides-per-view="3"
+    :autoplay="true"
+    :autoplay-delay="3000"
+    :autoplay-loop="true"
+    :pause-on-hover="true"
+  >
+    <template #default="{ item }">
+      <ProductCard :product="item" />
+    </template>
+  </VirtualCarousel>
+
+  <button @click="carousel?.stopAutoplay()">Tạm dừng</button>
+  <button @click="carousel?.startAutoplay()">Tiếp tục</button>
+</template>
+```
+
+Autoplay cũng tự bắt đầu khi collection `items` ban đầu rỗng nhận được dữ liệu.
+`stopAutoplay()` tạm dừng timer và `startAutoplay()` tiếp tục chạy khi prop
+`autoplay` vẫn được bật. Các thay đổi của `autoplayDelay`, `autoplayLoop` và
+`pauseOnHover` có hiệu lực ngay trong lúc component đang chạy.
 
 ## Cách dùng chung
 

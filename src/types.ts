@@ -92,6 +92,10 @@ export interface VirtualCarouselProps<T> {
   hasMore?: boolean
   loading?: boolean
   loadMoreThreshold?: number
+  autoplay?: boolean
+  autoplayDelay?: number
+  autoplayLoop?: boolean
+  pauseOnHover?: boolean
 }
 
 export interface VirtualCarouselChangeEvent<T> {
@@ -129,6 +133,8 @@ export interface VirtualCarouselExpose {
   next: (behavior?: ScrollBehavior) => void
   previous: (behavior?: ScrollBehavior) => void
   scrollToIndex: (index: number, options?: ScrollToOptions) => void
+  startAutoplay: () => void
+  stopAutoplay: () => void
 }
 
 export type VirtualListProps<T> = DynamicVirtualScrollProps<T>

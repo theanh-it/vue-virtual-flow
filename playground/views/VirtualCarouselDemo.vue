@@ -11,6 +11,10 @@ const activeIndex = ref(0)
 const slidesPerView = ref(3)
 const gap = ref(16)
 const loading = ref(false)
+const autoplay = ref(false)
+const autoplayDelay = ref(3000)
+const autoplayLoop = ref(true)
+const pauseOnHover = ref(true)
 
 faker.seed(20260729)
 
@@ -58,6 +62,22 @@ async function loadMore() {
           Gap
           <input v-model.number="gap" type="number" min="0" max="48" />
         </label>
+        <label>
+          <input v-model="autoplay" type="checkbox" />
+          Autoplay
+        </label>
+        <label v-if="autoplay">
+          Delay (ms)
+          <input v-model.number="autoplayDelay" type="number" min="1000" max="10000" step="500" />
+        </label>
+        <label v-if="autoplay">
+          <input v-model="autoplayLoop" type="checkbox" />
+          Loop
+        </label>
+        <label v-if="autoplay">
+          <input v-model="pauseOnHover" type="checkbox" />
+          Pause on Hover
+        </label>
       </div>
     </div>
 
@@ -75,6 +95,10 @@ async function loadMore() {
       :has-more="hasMore"
       :loading="loading"
       :load-more-threshold="3"
+      :autoplay="autoplay"
+      :autoplay-delay="autoplayDelay"
+      :autoplay-loop="autoplayLoop"
+      :pause-on-hover="pauseOnHover"
       @load-more="loadMore"
     >
       <template #default="{ item, active, visible }">
@@ -97,6 +121,8 @@ async function loadMore() {
       <button type="button" @click="carousel?.previous()">Previous</button>
       <span>{{ loading ? 'Loading 20 more…' : `Active ${activeIndex + 1}` }}</span>
       <button type="button" @click="carousel?.next()">Next</button>
+      <button v-if="autoplay" type="button" @click="carousel?.stopAutoplay()">Stop</button>
+      <button v-if="autoplay" type="button" @click="carousel?.startAutoplay()">Start</button>
     </div>
   </section>
 </template>
