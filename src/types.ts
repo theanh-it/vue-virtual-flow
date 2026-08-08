@@ -96,6 +96,14 @@ export interface VirtualCarouselProps<T> {
   autoplayDelay?: number
   autoplayLoop?: boolean
   pauseOnHover?: boolean
+  responsive?: ResponsiveBreakpoint[]
+}
+
+export interface ResponsiveBreakpoint {
+  breakpoint: number
+  slidesPerView?: number
+  slidesToScroll?: number
+  gap?: number
 }
 
 export interface VirtualCarouselChangeEvent<T> {

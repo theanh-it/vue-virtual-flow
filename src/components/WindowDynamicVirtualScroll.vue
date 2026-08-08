@@ -365,16 +365,7 @@ function scrollToIndex(
     componentTop.value + totalHeight.value - viewportHeight.value,
   )
   const targetTop = Math.max(0, Math.min(top, maximum))
-  const requestedBehavior = scrollOptions.behavior ?? 'auto'
-  const smoothScrollLimit = Math.max(
-    viewportHeight.value * 3,
-    normalizedEstimate.value * 10,
-  )
-  const behavior =
-    requestedBehavior === 'smooth' &&
-    Math.abs(targetTop - windowScrollTop.value) > smoothScrollLimit
-      ? 'auto'
-      : requestedBehavior
+  const behavior = scrollOptions.behavior ?? 'auto'
 
   if (behavior === 'auto') {
     windowScrollTop.value = targetTop
@@ -454,8 +445,14 @@ onUpdated(removeDisconnectedElements)
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleWindowScroll)
   window.removeEventListener('resize', handleWindowScroll)
-  rootResizeObserver?.disconnect()
-  itemResizeObserver?.disconnect()
+  if (rootResizeObserver) {
+    rootResizeObserver.disconnect()
+    rootResizeObserver = undefined
+  }
+  if (itemResizeObserver) {
+    itemResizeObserver.disconnect()
+    itemResizeObserver = undefined
+  }
   observedElements.clear()
 })
 

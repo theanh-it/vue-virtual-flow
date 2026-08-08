@@ -35,6 +35,7 @@ export type {
   ChatVirtualScrollProps,
   DynamicVirtualScrollProps,
   ItemKey,
+  ResponsiveBreakpoint,
   ScrollAlignment,
   ShortMediaFeedChangeEvent,
   ShortMediaFeedExpose,

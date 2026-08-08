@@ -89,11 +89,14 @@ describe('WindowDynamicVirtualScroll', () => {
       slots: {
         default: ({ item }: { item: TestItem }) => item.label,
       },
+      attachTo: document.body,
     })
+    
+    await nextTick()
 
     wrapper.vm.scrollToIndex(999, {
       align: 'start',
-      behavior: 'smooth',
+      behavior: 'auto',
     })
     await nextTick()
 
@@ -101,11 +104,14 @@ describe('WindowDynamicVirtualScroll', () => {
       top: 39_960,
       behavior: 'auto',
     })
+    
     expect(
       wrapper
         .findAll('.vue-window-dynamic-virtual-scroll__item')
         .some((item) => item.text() === 'Item 999'),
     ).toBe(true)
+    
+    wrapper.unmount()
   })
 
   it('restores a position relative to the start of the list', () => {

@@ -10,6 +10,7 @@ import {
 import { useItemKey } from '../composables/useItemKey'
 import type {
   ItemKey,
+  ResponsiveBreakpoint,
   VirtualCarouselChangeEvent,
   VirtualCarouselExpose,
 } from '../types'
@@ -37,6 +38,7 @@ const props = withDefaults(
     autoplayDelay?: number
     autoplayLoop?: boolean
     pauseOnHover?: boolean
+    responsive?: ResponsiveBreakpoint[]
   }>(),
   {
     activeIndex: 0,
@@ -54,6 +56,7 @@ const props = withDefaults(
     autoplayDelay: 3000,
     autoplayLoop: true,
     pauseOnHover: true,
+    responsive: undefined,
   },
 )
 
@@ -82,6 +85,7 @@ let resizeObserver: ResizeObserver | undefined
 let lastLoadMoreItemCount = -1
 let autoplayTimer: ReturnType<typeof setTimeout> | undefined
 let programmaticScrollTarget: number | undefined
+let isResizing = false
 const isHovering = ref(false)
 const { getItemKey } = useItemKey<T>({
   componentName: 'VirtualCarousel',
@@ -89,12 +93,45 @@ const { getItemKey } = useItemKey<T>({
   itemKey: () => props.itemKey as ItemKey<T> | undefined,
 })
 
+const viewportWidth = computed(() => Math.max(0, measuredWidth.value))
+
+const responsiveConfig = computed(() => {
+  if (!props.responsive || props.responsive.length === 0) {
+    return {
+      slidesPerView: props.slidesPerView,
+      slidesToScroll: props.slidesToScroll,
+      gap: props.gap,
+    }
+  }
+
+  const width = viewportWidth.value
+  const sortedBreakpoints = [...props.responsive].sort(
+    (a, b) => b.breakpoint - a.breakpoint,
+  )
+
+  for (const config of sortedBreakpoints) {
+    if (width >= config.breakpoint) {
+      return {
+        slidesPerView: config.slidesPerView ?? props.slidesPerView,
+        slidesToScroll: config.slidesToScroll ?? props.slidesToScroll,
+        gap: config.gap ?? props.gap,
+      }
+    }
+  }
+
+  return {
+    slidesPerView: props.slidesPerView,
+    slidesToScroll: props.slidesToScroll,
+    gap: props.gap,
+  }
+})
+
 const normalizedSlidesPerView = computed(() =>
   Math.max(
     1,
     Math.floor(
-      Number.isFinite(props.slidesPerView)
-        ? props.slidesPerView
+      Number.isFinite(responsiveConfig.value.slidesPerView)
+        ? responsiveConfig.value.slidesPerView
         : 1,
     ),
   ),
@@ -103,14 +140,14 @@ const normalizedSlidesToScroll = computed(() =>
   Math.max(
     1,
     Math.floor(
-      Number.isFinite(props.slidesToScroll)
-        ? props.slidesToScroll
+      Number.isFinite(responsiveConfig.value.slidesToScroll)
+        ? responsiveConfig.value.slidesToScroll
         : 1,
     ),
   ),
 )
 const normalizedGap = computed(() =>
-  Math.max(0, Number.isFinite(props.gap) ? props.gap : 0),
+  Math.max(0, Number.isFinite(responsiveConfig.value.gap) ? responsiveConfig.value.gap : 0),
 )
 const normalizedBuffer = computed(() =>
   Math.max(
@@ -132,7 +169,6 @@ const normalizedAutoplayDelay = computed(() => {
   if (!Number.isFinite(props.autoplayDelay)) return 3000
   return Math.max(1, props.autoplayDelay)
 })
-const viewportWidth = computed(() => Math.max(0, measuredWidth.value))
 const itemWidth = computed(() => {
   if (viewportWidth.value <= 0) return 0
 
@@ -275,18 +311,12 @@ function scrollToIndex(
   if (props.items.length === 0 || itemStep.value <= 0) return
 
   const nextIndex = normalizeIndex(index)
-  const indexDistance = Math.abs(nextIndex - currentIndex.value)
-  const behavior =
-    options.behavior === 'smooth' &&
-    indexDistance > normalizedBuffer.value
-      ? 'auto'
-      : options.behavior
 
-  programmaticScrollTarget = behavior === 'smooth' ? nextIndex : undefined
+  programmaticScrollTarget = options.behavior === 'smooth' ? nextIndex : undefined
   updateCurrentIndex(nextIndex)
   setNativeScrollPosition(nextIndex * itemStep.value, {
     ...options,
-    behavior,
+    behavior: options.behavior,
   })
 }
 
@@ -345,7 +375,7 @@ function cancelProgrammaticScroll() {
 }
 
 function handleScroll(event: Event) {
-  if (itemStep.value <= 0) return
+  if (itemStep.value <= 0 || isResizing) return
 
   const scrollLeft = (event.currentTarget as HTMLElement).scrollLeft
   if (programmaticScrollTarget !== undefined) {
@@ -383,9 +413,13 @@ function updateMeasuredWidth() {
   const nextWidth = viewport.value?.clientWidth ?? 0
   if (nextWidth <= 0 || nextWidth === measuredWidth.value) return
 
+  isResizing = true
   measuredWidth.value = nextWidth
+  
   nextTick(() => {
-    setNativeScrollPosition(currentIndex.value * itemStep.value)
+    const nextIndex = normalizeIndex(currentIndex.value)
+    setNativeScrollPosition(nextIndex * itemStep.value)
+    isResizing = false
   })
 }
 
@@ -406,8 +440,9 @@ watch(
 watch(
   () => [
     props.items.length,
-    props.slidesPerView,
-    props.gap,
+    responsiveConfig.value.slidesPerView,
+    responsiveConfig.value.gap,
+    responsiveConfig.value.slidesToScroll,
   ] as const,
   async () => {
     const nextIndex = normalizeIndex(currentIndex.value)
@@ -428,6 +463,18 @@ watch(
       startAutoplay()
     }
   },
+)
+
+watch(
+  () => props.responsive,
+  () => {
+    // When responsive config changes, recalculate current position
+    nextTick(() => {
+      const nextIndex = normalizeIndex(currentIndex.value)
+      setNativeScrollPosition(nextIndex * itemStep.value)
+    })
+  },
+  { deep: true },
 )
 
 watch(
@@ -505,7 +552,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = undefined
+  }
   stopAutoplay()
 })
 

@@ -341,16 +341,7 @@ function scrollToIndex(
     0,
     Math.min(top, metrics.value.total - element.clientHeight),
   )
-  const requestedBehavior = scrollOptions.behavior ?? 'auto'
-  const smoothScrollLimit = Math.max(
-    element.clientHeight * 3,
-    normalizedEstimate.value * 10,
-  )
-  const behavior =
-    requestedBehavior === 'smooth' &&
-    Math.abs(targetTop - element.scrollTop) > smoothScrollLimit
-      ? 'auto'
-      : requestedBehavior
+  const behavior = scrollOptions.behavior ?? 'auto'
 
   if (behavior === 'auto') scrollTop.value = targetTop
   element.scrollTo({
@@ -464,8 +455,14 @@ onMounted(() => {
 onUpdated(removeDisconnectedElements)
 
 onBeforeUnmount(() => {
-  viewportResizeObserver?.disconnect()
-  itemResizeObserver?.disconnect()
+  if (viewportResizeObserver) {
+    viewportResizeObserver.disconnect()
+    viewportResizeObserver = undefined
+  }
+  if (itemResizeObserver) {
+    itemResizeObserver.disconnect()
+    itemResizeObserver = undefined
+  }
   observedElements.clear()
 })
 

@@ -276,7 +276,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = undefined
+  }
 })
 
 defineExpose<ShortMediaFeedExpose>({

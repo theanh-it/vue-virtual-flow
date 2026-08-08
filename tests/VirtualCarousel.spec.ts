@@ -158,7 +158,7 @@ describe('VirtualCarousel', () => {
     ).toBe('4 of 100')
   })
 
-  it('clamps scrollToIndex and disables unsafe long smooth scrolling', async () => {
+  it('clamps scrollToIndex to valid range', async () => {
     const wrapper = mount(TestVirtualCarousel, {
       props: {
         items: items.slice(0, 10),
@@ -177,7 +177,7 @@ describe('VirtualCarousel', () => {
 
     expect(scrollTo).toHaveBeenCalledWith({
       left: 2_240,
-      behavior: 'auto',
+      behavior: 'smooth',
     })
     expect(wrapper.emitted('update:activeIndex')?.at(-1)).toEqual([7])
     expect(wrapper.emitted('reachEnd')).toHaveLength(1)

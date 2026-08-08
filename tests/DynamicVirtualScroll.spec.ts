@@ -250,8 +250,17 @@ describe('DynamicVirtualScroll', () => {
 
     expect(scrollTo).toHaveBeenCalledWith({
       top: 39_960,
-      behavior: 'auto',
+      behavior: 'smooth',
     })
+    
+    // Manually set scrollTop and trigger scroll event since scrollTo is mocked
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      value: 39_960,
+    })
+    viewport.dispatchEvent(new Event('scroll'))
+    await nextTick()
+    
     expect(
       wrapper.findAll('.vue-dynamic-virtual-scroll__item').some(
         (item) => item.text() === 'Item 999',

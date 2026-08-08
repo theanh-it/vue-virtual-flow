@@ -43,6 +43,11 @@ export const router = createRouter({
       component: () => import('./views/VirtualCarouselDemo.vue'),
     },
     {
+      path: '/responsive-carousel',
+      name: 'responsive-carousel',
+      component: () => import('./views/ResponsiveCarouselDemo.vue'),
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/dynamic',
     },

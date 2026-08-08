@@ -11,6 +11,7 @@
         <RouterLink to="/load-more">Load more</RouterLink>
         <RouterLink to="/short-media">Short media</RouterLink>
         <RouterLink to="/carousel">Carousel</RouterLink>
+        <RouterLink to="/responsive-carousel">Responsive</RouterLink>
       </nav>
     </header>
 
