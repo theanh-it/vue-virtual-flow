@@ -75,14 +75,47 @@ const componentTop = ref(0)
 const measurementVersion = ref(0)
 const measuredSizes = new Map<PropertyKey, number>()
 const observedElements = new Map<HTMLElement, PropertyKey>()
+const pendingResizeEntries = new Map<Element, ResizeObserverEntry>()
 let rootResizeObserver: ResizeObserver | undefined
 let itemResizeObserver: ResizeObserver | undefined
+let windowFrame: ScheduledFrame | undefined
+let itemResizeFrame: ScheduledFrame | undefined
+let shouldEmitScroll = false
+let isMounted = false
 let lastLoadMoreItemCount = -1
 const { getItemKey } = useItemKey<T>({
   componentName: 'WindowDynamicVirtualScroll',
   items: () => props.items,
   itemKey: () => props.itemKey as ItemKey<T> | undefined,
 })
+
+interface ScheduledFrame {
+  id: number
+  type: 'animation' | 'timeout'
+}
+
+function scheduleFrame(callback: () => void): ScheduledFrame {
+  if (typeof window.requestAnimationFrame === 'function') {
+    return {
+      id: window.requestAnimationFrame(callback),
+      type: 'animation',
+    }
+  }
+
+  return {
+    id: window.setTimeout(callback, 0),
+    type: 'timeout',
+  }
+}
+
+function cancelFrame(frame: ScheduledFrame | undefined) {
+  if (!frame) return
+  if (frame.type === 'animation') {
+    window.cancelAnimationFrame(frame.id)
+  } else {
+    window.clearTimeout(frame.id)
+  }
+}
 
 const {
   pulling,
@@ -226,10 +259,28 @@ function emitScroll() {
   })
 }
 
+function scheduleWindowUpdate(emitScrollEvent = false) {
+  if (!isMounted) return
+  shouldEmitScroll ||= emitScrollEvent
+  if (windowFrame) return
+
+  windowFrame = scheduleFrame(() => {
+    windowFrame = undefined
+    updateWindowMetrics()
+    if (shouldEmitScroll) {
+      shouldEmitScroll = false
+      emitScroll()
+    }
+    maybeEmitLoadMore()
+  })
+}
+
 function handleWindowScroll() {
-  updateWindowMetrics()
-  emitScroll()
-  maybeEmitLoadMore()
+  scheduleWindowUpdate(true)
+}
+
+function handleWindowResize() {
+  scheduleWindowUpdate()
 }
 
 function maybeEmitLoadMore() {
@@ -261,7 +312,7 @@ function getEntryHeight(entry: ResizeObserverEntry) {
   return entry.contentRect.height
 }
 
-function handleItemResize(entries: ResizeObserverEntry[]) {
+function applyItemResize(entries: ResizeObserverEntry[]) {
   const previousMetrics = metrics.value
   let adjustmentAboveViewport = 0
   let changed = false
@@ -291,6 +342,7 @@ function handleItemResize(entries: ResizeObserverEntry[]) {
   measurementVersion.value += 1
 
   nextTick(() => {
+    if (!isMounted) return
     if (adjustmentAboveViewport !== 0 && typeof window !== 'undefined') {
       const targetTop = Math.max(
         0,
@@ -301,6 +353,21 @@ function handleItemResize(entries: ResizeObserverEntry[]) {
     }
     updateWindowMetrics()
     maybeEmitLoadMore()
+  })
+}
+
+function handleItemResize(entries: ResizeObserverEntry[]) {
+  if (!isMounted) return
+  for (const entry of entries) {
+    pendingResizeEntries.set(entry.target, entry)
+  }
+  if (itemResizeFrame) return
+
+  itemResizeFrame = scheduleFrame(() => {
+    itemResizeFrame = undefined
+    const pendingEntries = Array.from(pendingResizeEntries.values())
+    pendingResizeEntries.clear()
+    applyItemResize(pendingEntries)
   })
 }
 
@@ -389,21 +456,26 @@ watch(
   () => {
     measuredSizes.clear()
     measurementVersion.value += 1
+    lastLoadMoreItemCount = -1
   },
 )
 
 watch(
-  () => props.items.length,
-  async () => {
-    const currentKeys = new Set(
-      props.items.map((item, index) => getItemKey(item, index)),
-    )
+  () => props.items.map((item, index) => getItemKey(item, index)),
+  async (currentItemKeys, previousItemKeys) => {
+    const dataSetChanged =
+      currentItemKeys.length !== previousItemKeys.length ||
+      currentItemKeys.some((key, index) => key !== previousItemKeys[index])
+    const currentKeys = new Set(currentItemKeys)
+
     for (const key of measuredSizes.keys()) {
       if (!currentKeys.has(key)) measuredSizes.delete(key)
     }
+    if (dataSetChanged) lastLoadMoreItemCount = -1
     measurementVersion.value += 1
 
     await nextTick()
+    if (!isMounted) return
     updateWindowMetrics()
     maybeEmitLoadMore()
   },
@@ -414,20 +486,21 @@ watch(
   async ([hasMore]) => {
     if (!hasMore) lastLoadMoreItemCount = -1
     await nextTick()
+    if (!isMounted) return
     updateWindowMetrics()
     maybeEmitLoadMore()
   },
 )
 
 onMounted(() => {
+  isMounted = true
   updateWindowMetrics()
   window.addEventListener('scroll', handleWindowScroll, { passive: true })
-  window.addEventListener('resize', handleWindowScroll, { passive: true })
+  window.addEventListener('resize', handleWindowResize, { passive: true })
 
   if (typeof ResizeObserver !== 'undefined') {
     rootResizeObserver = new ResizeObserver(() => {
-      updateWindowMetrics()
-      maybeEmitLoadMore()
+      scheduleWindowUpdate()
     })
     itemResizeObserver = new ResizeObserver(handleItemResize)
 
@@ -437,14 +510,23 @@ onMounted(() => {
     }
   }
 
-  nextTick(maybeEmitLoadMore)
+  nextTick(() => {
+    if (isMounted) maybeEmitLoadMore()
+  })
 })
 
 onUpdated(removeDisconnectedElements)
 
 onBeforeUnmount(() => {
+  isMounted = false
   window.removeEventListener('scroll', handleWindowScroll)
-  window.removeEventListener('resize', handleWindowScroll)
+  window.removeEventListener('resize', handleWindowResize)
+  cancelFrame(windowFrame)
+  cancelFrame(itemResizeFrame)
+  windowFrame = undefined
+  itemResizeFrame = undefined
+  shouldEmitScroll = false
+  pendingResizeEntries.clear()
   if (rootResizeObserver) {
     rootResizeObserver.disconnect()
     rootResizeObserver = undefined
