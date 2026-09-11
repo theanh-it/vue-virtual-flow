@@ -47,6 +47,23 @@ export interface WindowDynamicVirtualScrollProps<T> {
   pullRefreshThreshold?: number
 }
 
+export interface WindowGirdVirtualScrollProps<T> {
+  items: readonly T[]
+  itemSize: number
+  columns?: number
+  gap?: number
+  overscan?: number
+  itemKey?: ItemKey<T>
+  ariaLabel?: string
+  hasMore?: boolean
+  loading?: boolean
+  loadingItemSize?: number
+  loadMoreThreshold?: number
+  pullToRefresh?: boolean
+  refreshing?: boolean
+  pullRefreshThreshold?: number
+}
+
 export interface ChatVirtualScrollProps<T> {
   items: readonly T[]
   estimatedItemSize?: number

@@ -2,9 +2,11 @@ import VueVirtualScroll, {
   DynamicVirtualScroll,
   VirtualList,
   VirtualScroll,
+  WindowGirdVirtualScroll,
   type VirtualListProps,
   type VirtualScrollExpose,
   type VirtualScrollProps,
+  type WindowGirdVirtualScrollProps,
 } from 'vue-virtual-flow'
 import type { Plugin } from 'vue'
 
@@ -25,6 +27,12 @@ const simpleProps: VirtualListProps<Row> = {
   items: [{ id: 1, label: 'one' }],
 }
 const restorePosition = (list: VirtualScrollExpose) => list.scrollTo(320)
+const gridProps: WindowGirdVirtualScrollProps<Row> = {
+  items: [{ id: 1, label: 'one' }],
+  itemSize: 240,
+  columns: 4,
+  gap: 16,
+}
 
 void [
   plugin,
@@ -32,7 +40,9 @@ void [
   simpleProps,
   exposed,
   restorePosition,
+  gridProps,
   VirtualList,
   VirtualScroll,
   DynamicVirtualScroll,
+  WindowGirdVirtualScroll,
 ]

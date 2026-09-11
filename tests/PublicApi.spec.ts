@@ -3,6 +3,7 @@ import {
   DynamicVirtualScroll,
   VirtualList,
   VueVirtualScroll,
+  WindowGirdVirtualScroll,
 } from '../src'
 
 describe('public API', () => {
@@ -16,5 +17,9 @@ describe('public API', () => {
     VueVirtualScroll.install?.({ component } as never)
 
     expect(component).toHaveBeenCalledWith('VirtualList', VirtualList)
+    expect(component).toHaveBeenCalledWith(
+      'WindowGirdVirtualScroll',
+      WindowGirdVirtualScroll,
+    )
   })
 })

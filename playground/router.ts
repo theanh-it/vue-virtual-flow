@@ -28,6 +28,11 @@ export const router = createRouter({
       component: () => import('./views/WindowDynamicDemo.vue'),
     },
     {
+      path: '/window-grid',
+      name: 'window-grid',
+      component: () => import('./views/WindowGirdDemo.vue'),
+    },
+    {
       path: '/chat',
       name: 'chat',
       component: () => import('./views/ChatDemo.vue'),
