@@ -4,7 +4,7 @@
 
 A small, typed, and accessible collection of virtual scrolling components for
 Vue 3. It covers fixed and variable-height lists, window scrolling, chat,
-short-media feeds, and horizontal carousels.
+window-scrolling grids, short-media feeds, and horizontal carousels.
 
 Only the items needed for the current viewport are mounted, keeping large data
 sets responsive without prescribing how an item should look.
@@ -18,6 +18,7 @@ sets responsive without prescribing how an item should look.
   - [VirtualList and DynamicVirtualScroll](#virtuallist-and-dynamicvirtualscroll)
   - [VirtualScroll](#virtualscroll)
   - [WindowDynamicVirtualScroll](#windowdynamicvirtualscroll)
+  - [WindowGirdVirtualScroll](#windowgirdvirtualscroll)
   - [ChatVirtualScroll](#chatvirtualscroll)
   - [ShortMediaFeed](#shortmediafeed)
   - [VirtualCarousel](#virtualcarousel)
@@ -83,8 +84,8 @@ createApp(App).use(VueVirtualScroll).mount('#app')
 ```
 
 The plugin registers `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
-`WindowDynamicVirtualScroll`, `ChatVirtualScroll`, `ShortMediaFeed`, and
-`VirtualCarousel`.
+`WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll`, `ChatVirtualScroll`,
+`ShortMediaFeed`, and `VirtualCarousel`.
 
 ## Choose a component
 
@@ -94,6 +95,7 @@ The plugin registers `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
 | `DynamicVirtualScroll` | Same behavior as `VirtualList`, with an explicit name. | Component container | Variable, measured automatically |
 | `VirtualScroll` | Every row has the same known height. | Component container | Fixed |
 | `WindowDynamicVirtualScroll` | The page itself should scroll instead of a nested container. | Browser window | Variable, measured automatically |
+| `WindowGirdVirtualScroll` | A fixed-height card grid should use page scrolling. | Browser window | Fixed row height |
 | `ChatVirtualScroll` | Messages are appended at the bottom and older history is prepended. | Component container | Variable, measured automatically |
 | `ShortMediaFeed` | One full-height item should snap into view at a time. | Component container | One viewport per item |
 | `VirtualCarousel` | Several horizontal slides should snap and virtualize. | Component container | Calculated from container width |
@@ -361,6 +363,47 @@ const list = ref<VirtualScrollExpose>()
   `refresh`. `scrollTop` is relative to the component start.
 - Methods: `scrollTo`, `scrollToIndex`, and `scrollToTop`. They scroll the
   browser window; `scrollTo` accepts an offset relative to the list.
+
+### WindowGirdVirtualScroll
+
+Use `WindowGirdVirtualScroll` for a multi-column grid whose cards have a known,
+fixed height and whose viewport is the browser window. Virtualization happens
+by complete rows, so every visible column remains mounted together.
+
+```vue
+<script setup lang="ts">
+import { WindowGirdVirtualScroll } from 'vue-virtual-flow'
+
+const products = Array.from({ length: 10_000 }, (_, id) => ({
+  id,
+  name: `Product ${id + 1}`,
+}))
+</script>
+
+<template>
+  <WindowGirdVirtualScroll
+    :items="products"
+    :item-size="240"
+    :columns="4"
+    :gap="16"
+    item-key="id"
+    aria-label="Product grid"
+  >
+    <template #default="{ item, rowIndex, columnIndex }">
+      <ProductCard
+        :product="item"
+        :data-position="`${rowIndex}:${columnIndex}`"
+      />
+    </template>
+  </WindowGirdVirtualScroll>
+</template>
+```
+
+`itemSize` is the height of one grid row. Content that exceeds it is clipped.
+`columns` defaults to `2`, `gap` defaults to `0`, and `overscan` defaults to
+one extra row before and after the visible range. The remaining list props,
+events, named slots, and exposed methods match `WindowDynamicVirtualScroll`.
+The default slot also receives `rowIndex` and `columnIndex`.
 
 ### ChatVirtualScroll
 
@@ -719,7 +762,8 @@ converted to pixels. `height="fill"` is shorthand for `height="100%"`:
 
 A percentage height only works when its parent has an explicit height.
 Development builds warn when it resolves to `0px`.
-`WindowDynamicVirtualScroll` uses the browser window and has no `height` prop.
+`WindowDynamicVirtualScroll` and `WindowGirdVirtualScroll` use the browser
+window and have no `height` prop.
 
 ### Stable item keys
 
@@ -782,7 +826,8 @@ to false after the final page.
 ### Pull to refresh
 
 Pull-to-refresh is available on `VirtualList`, `DynamicVirtualScroll`,
-`VirtualScroll`, and `WindowDynamicVirtualScroll`:
+`VirtualScroll`, `WindowDynamicVirtualScroll`, and
+`WindowGirdVirtualScroll`:
 
 ```vue
 <VirtualList
@@ -823,6 +868,7 @@ import type {
   VirtualScrollExpose,
   VirtualScrollProps,
   WindowDynamicVirtualScrollProps,
+  WindowGirdVirtualScrollProps,
 } from 'vue-virtual-flow'
 ```
 

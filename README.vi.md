@@ -4,7 +4,7 @@
 
 Bộ component virtual scrolling nhỏ gọn, có type đầy đủ và hỗ trợ khả năng tiếp
 cận cho Vue 3. Thư viện hỗ trợ danh sách chiều cao cố định hoặc động, cuộn theo
-cửa sổ, giao diện chat, feed media ngắn và carousel ngang.
+cửa sổ, grid cuộn theo cửa sổ, giao diện chat, feed media ngắn và carousel ngang.
 
 Chỉ các item cần thiết cho viewport hiện tại được mount, nhờ đó tập dữ liệu lớn
 vẫn phản hồi nhanh mà component không áp đặt giao diện của từng item.
@@ -18,6 +18,7 @@ vẫn phản hồi nhanh mà component không áp đặt giao diện của từn
   - [VirtualList và DynamicVirtualScroll](#virtuallist-và-dynamicvirtualscroll)
   - [VirtualScroll](#virtualscroll)
   - [WindowDynamicVirtualScroll](#windowdynamicvirtualscroll)
+  - [WindowGirdVirtualScroll](#windowgirdvirtualscroll)
   - [ChatVirtualScroll](#chatvirtualscroll)
   - [ShortMediaFeed](#shortmediafeed)
   - [VirtualCarousel](#virtualcarousel)
@@ -83,8 +84,8 @@ createApp(App).use(VueVirtualScroll).mount('#app')
 ```
 
 Plugin đăng ký `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
-`WindowDynamicVirtualScroll`, `ChatVirtualScroll`, `ShortMediaFeed` và
-`VirtualCarousel`.
+`WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll`, `ChatVirtualScroll`,
+`ShortMediaFeed` và `VirtualCarousel`.
 
 ## Chọn component
 
@@ -94,6 +95,7 @@ Plugin đăng ký `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
 | `DynamicVirtualScroll` | Giống `VirtualList` nhưng tên gọi thể hiện rõ chiều cao động. | Container của component | Động, tự đo |
 | `VirtualScroll` | Tất cả hàng có cùng chiều cao đã biết. | Container của component | Cố định |
 | `WindowDynamicVirtualScroll` | Muốn trang cuộn thay vì tạo một container cuộn lồng bên trong. | Cửa sổ trình duyệt | Động, tự đo |
+| `WindowGirdVirtualScroll` | Grid card có chiều cao cố định và dùng trang để cuộn. | Cửa sổ trình duyệt | Chiều cao hàng cố định |
 | `ChatVirtualScroll` | Tin nhắn mới được thêm ở cuối và lịch sử cũ được thêm ở đầu. | Container của component | Động, tự đo |
 | `ShortMediaFeed` | Mỗi lần cần snap một item đầy viewport. | Container của component | Một viewport cho mỗi item |
 | `VirtualCarousel` | Cần hiển thị và snap nhiều slide theo chiều ngang. | Container của component | Tính từ chiều rộng container |
@@ -361,6 +363,47 @@ const list = ref<VirtualScrollExpose>()
   `refresh`. `scrollTop` được tính tương đối từ đầu component.
 - Methods: `scrollTo`, `scrollToIndex` và `scrollToTop`. Các method này cuộn
   cửa sổ trình duyệt; `scrollTo` nhận offset tương đối so với đầu danh sách.
+
+### WindowGirdVirtualScroll
+
+Dùng `WindowGirdVirtualScroll` cho grid nhiều cột có card với chiều cao cố định
+đã biết và dùng cửa sổ trình duyệt làm viewport. Component virtualize theo cả
+hàng để các cột đang hiển thị luôn được mount cùng nhau.
+
+```vue
+<script setup lang="ts">
+import { WindowGirdVirtualScroll } from 'vue-virtual-flow'
+
+const products = Array.from({ length: 10_000 }, (_, id) => ({
+  id,
+  name: `Sản phẩm ${id + 1}`,
+}))
+</script>
+
+<template>
+  <WindowGirdVirtualScroll
+    :items="products"
+    :item-size="240"
+    :columns="4"
+    :gap="16"
+    item-key="id"
+    aria-label="Grid sản phẩm"
+  >
+    <template #default="{ item, rowIndex, columnIndex }">
+      <ProductCard
+        :product="item"
+        :data-position="`${rowIndex}:${columnIndex}`"
+      />
+    </template>
+  </WindowGirdVirtualScroll>
+</template>
+```
+
+`itemSize` là chiều cao của một hàng grid; nội dung vượt quá kích thước này sẽ
+bị ẩn. `columns` mặc định là `2`, `gap` mặc định là `0`, còn `overscan` mặc
+định render thêm một hàng trước và sau vùng nhìn thấy. Các prop list còn lại,
+event, named slot và method qua ref giống `WindowDynamicVirtualScroll`. Default
+slot nhận thêm `rowIndex` và `columnIndex`.
 
 ### ChatVirtualScroll
 
@@ -717,8 +760,8 @@ Các component dùng container nhận một số hoặc chuỗi chiều cao CSS.
 
 Chiều cao phần trăm chỉ hoạt động khi thẻ cha có chiều cao xác định. Bản
 development cảnh báo nếu viewport được tính thành `0px`.
-`WindowDynamicVirtualScroll` dùng cửa sổ trình duyệt nên không có prop
-`height`.
+`WindowDynamicVirtualScroll` và `WindowGirdVirtualScroll` dùng cửa sổ trình
+duyệt nên không có prop `height`.
 
 ### Key ổn định cho item
 
@@ -778,8 +821,8 @@ phép request tiếp theo. Giữ `loading` là true trong toàn bộ request và
 
 ### Kéo để làm mới
 
-Pull-to-refresh có trên `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`
-và `WindowDynamicVirtualScroll`:
+Pull-to-refresh có trên `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
+`WindowDynamicVirtualScroll` và `WindowGirdVirtualScroll`:
 
 ```vue
 <VirtualList
@@ -820,6 +863,7 @@ import type {
   VirtualScrollExpose,
   VirtualScrollProps,
   WindowDynamicVirtualScrollProps,
+  WindowGirdVirtualScrollProps,
 } from 'vue-virtual-flow'
 ```
 

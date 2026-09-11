@@ -7,6 +7,7 @@
         <RouterLink to="/fixed">Fixed height</RouterLink>
         <RouterLink to="/dynamic">Dynamic height</RouterLink>
         <RouterLink to="/window-dynamic">Window</RouterLink>
+        <RouterLink to="/window-grid">Grid</RouterLink>
         <RouterLink to="/chat">Chat</RouterLink>
         <RouterLink to="/load-more">Load more</RouterLink>
         <RouterLink to="/short-media">Short media</RouterLink>

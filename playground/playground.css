@@ -103,6 +103,7 @@ p {
 .vue-virtual-scroll,
 .vue-dynamic-virtual-scroll,
 .vue-window-dynamic-virtual-scroll,
+.vue-window-gird-virtual-scroll,
 .vue-chat-virtual-scroll {
   background: white;
   border: 1px solid #dfe5ed;
@@ -357,6 +358,68 @@ p {
   font: inherit;
 }
 
+.window-grid-controls {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.column-control {
+  display: grid;
+  gap: 0.4rem;
+  color: #5a6572;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.column-control select {
+  min-width: 5rem;
+  padding: 0.7rem;
+  background: white;
+  border: 1px solid #cfd7e3;
+  border-radius: 0.6rem;
+  font: inherit;
+}
+
+.window-grid-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: white;
+  border: 1px solid #dfe5ed;
+  border-radius: 0.7rem;
+}
+
+.window-grid-card img {
+  display: block;
+  width: 100%;
+  height: 150px;
+  background: #edf0f4;
+  object-fit: cover;
+}
+
+.window-grid-card > div {
+  min-width: 0;
+  padding: 0.8rem;
+}
+
+.window-grid-card small {
+  color: #768394;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.window-grid-card h3 {
+  display: -webkit-box;
+  margin: 0.4rem 0 0;
+  overflow: hidden;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 .load-more-status {
   display: grid;
   flex: 0 0 auto;
@@ -467,6 +530,11 @@ p {
   }
 
   .dynamic-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .window-grid-controls {
     align-items: stretch;
     flex-direction: column;
   }

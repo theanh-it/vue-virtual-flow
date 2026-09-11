@@ -5,6 +5,7 @@ import ShortMediaFeed from './components/ShortMediaFeed.vue'
 import VirtualCarousel from './components/VirtualCarousel.vue'
 import VirtualScroll from './components/VirtualScroll.vue'
 import WindowDynamicVirtualScroll from './components/WindowDynamicVirtualScroll.vue'
+import WindowGirdVirtualScroll from './components/WindowGirdVirtualScroll.vue'
 import './style.css'
 
 declare module 'vue' {
@@ -16,6 +17,7 @@ declare module 'vue' {
     VirtualList: typeof DynamicVirtualScroll
     VirtualScroll: typeof VirtualScroll
     WindowDynamicVirtualScroll: typeof WindowDynamicVirtualScroll
+    WindowGirdVirtualScroll: typeof WindowGirdVirtualScroll
   }
 }
 
@@ -29,6 +31,7 @@ export {
   VirtualList,
   VirtualScroll,
   WindowDynamicVirtualScroll,
+  WindowGirdVirtualScroll,
 }
 export type {
   ChatVirtualScrollExpose,
@@ -49,6 +52,7 @@ export type {
   VirtualScrollExpose,
   VirtualScrollProps,
   WindowDynamicVirtualScrollProps,
+  WindowGirdVirtualScrollProps,
 } from './types'
 
 export const VueVirtualScroll: Plugin = {
@@ -62,6 +66,10 @@ export const VueVirtualScroll: Plugin = {
     app.component(
       'WindowDynamicVirtualScroll',
       WindowDynamicVirtualScroll as Component,
+    )
+    app.component(
+      'WindowGirdVirtualScroll',
+      WindowGirdVirtualScroll as Component,
     )
   },
 }

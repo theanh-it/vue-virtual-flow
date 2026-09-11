@@ -24,6 +24,13 @@
   overflow-anchor: none;
 }
 
+.vue-window-gird-virtual-scroll {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-anchor: none;
+}
+
 .vue-chat-virtual-scroll {
   position: relative;
   width: 100%;
@@ -153,6 +160,26 @@
   width: 100%;
 }
 
+.vue-window-gird-virtual-scroll__spacer {
+  position: relative;
+  width: 100%;
+}
+
+.vue-window-gird-virtual-scroll__content {
+  position: absolute;
+  inset: 0 0 auto;
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  will-change: transform;
+}
+
+.vue-window-gird-virtual-scroll__item {
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 .vue-chat-virtual-scroll__spacer {
   position: relative;
   width: 100%;
@@ -210,7 +237,8 @@
 
 .vue-virtual-scroll__loading,
 .vue-dynamic-virtual-scroll__loading,
-.vue-window-dynamic-virtual-scroll__loading {
+.vue-window-dynamic-virtual-scroll__loading,
+.vue-window-gird-virtual-scroll__loading {
   position: absolute;
   inset: 0 0 auto;
   display: flex;
@@ -224,7 +252,8 @@
 
 .vue-virtual-scroll__refresh,
 .vue-dynamic-virtual-scroll__refresh,
-.vue-window-dynamic-virtual-scroll__refresh {
+.vue-window-dynamic-virtual-scroll__refresh,
+.vue-window-gird-virtual-scroll__refresh {
   position: absolute;
   inset: 0 0 auto;
   z-index: 1;
@@ -243,9 +272,11 @@
 .vue-virtual-scroll__spacer,
 .vue-dynamic-virtual-scroll__spacer,
 .vue-window-dynamic-virtual-scroll__spacer,
+.vue-window-gird-virtual-scroll__spacer,
 .vue-virtual-scroll__empty,
 .vue-dynamic-virtual-scroll__empty,
-.vue-window-dynamic-virtual-scroll__empty {
+.vue-window-dynamic-virtual-scroll__empty,
+.vue-window-gird-virtual-scroll__empty {
   transition: transform 180ms ease;
 }
 
@@ -261,5 +292,14 @@
   .vue-window-dynamic-virtual-scroll__spacer,
 .vue-window-dynamic-virtual-scroll--pulling
   .vue-window-dynamic-virtual-scroll__empty {
+  transition: none;
+}
+
+.vue-window-gird-virtual-scroll--pulling
+  .vue-window-gird-virtual-scroll__refresh,
+.vue-window-gird-virtual-scroll--pulling
+  .vue-window-gird-virtual-scroll__spacer,
+.vue-window-gird-virtual-scroll--pulling
+  .vue-window-gird-virtual-scroll__empty {
   transition: none;
 }
