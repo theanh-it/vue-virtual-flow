@@ -2,6 +2,7 @@ import type { App, Component, Plugin } from 'vue'
 import ChatVirtualScroll from './components/ChatVirtualScroll.vue'
 import DynamicVirtualScroll from './components/DynamicVirtualScroll.vue'
 import ShortMediaFeed from './components/ShortMediaFeed.vue'
+import SkeletonLoader from './components/SkeletonLoader.vue'
 import VirtualCarousel from './components/VirtualCarousel.vue'
 import VirtualScroll from './components/VirtualScroll.vue'
 import WindowDynamicVirtualScroll from './components/WindowDynamicVirtualScroll.vue'
@@ -13,6 +14,7 @@ declare module 'vue' {
     ChatVirtualScroll: typeof ChatVirtualScroll
     DynamicVirtualScroll: typeof DynamicVirtualScroll
     ShortMediaFeed: typeof ShortMediaFeed
+    SkeletonLoader: typeof SkeletonLoader
     VirtualCarousel: typeof VirtualCarousel
     VirtualList: typeof DynamicVirtualScroll
     VirtualScroll: typeof VirtualScroll
@@ -27,6 +29,7 @@ export {
   ChatVirtualScroll,
   DynamicVirtualScroll,
   ShortMediaFeed,
+  SkeletonLoader,
   VirtualCarousel,
   VirtualList,
   VirtualScroll,
@@ -43,6 +46,7 @@ export type {
   ShortMediaFeedChangeEvent,
   ShortMediaFeedExpose,
   ShortMediaFeedProps,
+  SkeletonLoaderProps,
   VirtualCarouselChangeEvent,
   VirtualCarouselExpose,
   VirtualCarouselProps,
@@ -60,6 +64,7 @@ export const VueVirtualScroll: Plugin = {
     app.component('ChatVirtualScroll', ChatVirtualScroll as Component)
     app.component('DynamicVirtualScroll', DynamicVirtualScroll as Component)
     app.component('ShortMediaFeed', ShortMediaFeed as Component)
+    app.component('SkeletonLoader', SkeletonLoader as Component)
     app.component('VirtualCarousel', VirtualCarousel as Component)
     app.component('VirtualList', VirtualList as Component)
     app.component('VirtualScroll', VirtualScroll as Component)

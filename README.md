@@ -22,6 +22,7 @@ sets responsive without prescribing how an item should look.
   - [ChatVirtualScroll](#chatvirtualscroll)
   - [ShortMediaFeed](#shortmediafeed)
   - [VirtualCarousel](#virtualcarousel)
+  - [SkeletonLoader](#skeletonloader)
 - [Shared recipes](#shared-recipes)
   - [Viewport height](#viewport-height)
   - [Stable item keys](#stable-item-keys)
@@ -44,9 +45,18 @@ Import the library stylesheet once in your application entry point:
 import 'vue-virtual-flow/style.css'
 ```
 
-The package requires Vue `^3.4.0` and Node.js `>=18`.
+| Dependency | Requirement |
+| --- | --- |
+| Vue | `^3.4.0` |
+| Node.js | `>=18` |
 
 ## Quick start
+
+| Registration | Usage |
+| --- | --- |
+| Local imports | `import { VirtualList, SkeletonLoader } from 'vue-virtual-flow'` |
+| Global plugin | `createApp(App).use(VueVirtualScroll)` |
+| Shared styles | `import 'vue-virtual-flow/style.css'` |
 
 Import components locally:
 
@@ -85,7 +95,7 @@ createApp(App).use(VueVirtualScroll).mount('#app')
 
 The plugin registers `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
 `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll`, `ChatVirtualScroll`,
-`ShortMediaFeed`, and `VirtualCarousel`.
+`ShortMediaFeed`, `VirtualCarousel`, and `SkeletonLoader`.
 
 ## Choose a component
 
@@ -99,8 +109,21 @@ The plugin registers `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
 | `ChatVirtualScroll` | Messages are appended at the bottom and older history is prepended. | Component container | Variable, measured automatically |
 | `ShortMediaFeed` | One full-height item should snap into view at a time. | Component container | One viewport per item |
 | `VirtualCarousel` | Several horizontal slides should snap and virtualize. | Component container | Calculated from container width |
+| `SkeletonLoader` | You need a placeholder while content loads. | None | Configurable width and height |
 
 ## Component guides
+
+Events use Vue template listeners; action methods are called through a component
+ref. The tables below use `list`, `chat`, `feed`, or `carousel` as the ref name.
+
+| Task | Usage |
+| --- | --- |
+| Declare a typed ref | `const list = ref<VirtualScrollExpose>()` |
+| Attach the ref to the component | `<VirtualScroll ref="list" ... />` |
+| Call after mount in a script | `list.value?.scrollToIndex(10)` |
+| Call from a template event | `@click="list?.scrollToIndex(10)"` |
+| Select scroll behavior | Pass `{ behavior: 'smooth' }` to `scrollTo` / `scrollToIndex`, or `'smooth'` to `scrollToTop`, `scrollToBottom`, `next`, or `previous`. |
+| Align a list item | `scrollToIndex(index, { align: 'start' })` / `'center'` / `'end'` |
 
 ### VirtualList and DynamicVirtualScroll
 
@@ -199,19 +222,19 @@ to items that have not been measured.
 
 #### Events
 
-| Event | Payload | When it fires |
-| --- | --- | --- |
-| `scroll` | `{ scrollTop, startIndex, endIndex }` | On container scroll. `endIndex` is exclusive. |
-| `load-more` | none | Near the end when `hasMore` is true and `loading` is false. |
-| `refresh` | none | After pulling past the refresh threshold and releasing. |
+| Event | Payload | When it fires | Usage |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | On container scroll. `endIndex` is exclusive. | `@scroll="onScroll"` |
+| `load-more` | none | Near the end when `hasMore` is true and `loading` is false. | `@load-more="loadMore"` |
+| `refresh` | none | After pulling past the refresh threshold and releasing. | `@refresh="refreshFirstPage"` |
 
 #### Exposed API
 
-| Method | Description |
-| --- | --- |
-| `scrollTo(position, options?)` | Scrolls to a pixel offset inside the list. |
-| `scrollToIndex(index, { align?, behavior? })` | Scrolls to a zero-based index. `align` is `start`, `center`, or `end`. |
-| `scrollToTop(behavior?)` | Scrolls to the start of the list. |
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Scrolls to a pixel offset inside the list. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Scrolls to a zero-based index. `align` is `start`, `center`, or `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Scrolls to the start of the list. | `list?.scrollToTop()` |
 
 Long-distance smooth jumps automatically become immediate jumps because
 unmeasured rows can change the target offset while scrolling.
@@ -285,13 +308,30 @@ The rendered row must stay at `itemSize`. If content can wrap or resize, use
 | `refreshing` | `boolean` | `false` | Keeps the refresh indicator open during async work. |
 | `pullRefreshThreshold` | `number` | `64` | Pull distance required to emit `refresh`, in pixels. |
 
-#### Slots, events, and exposed API
+#### Slots
 
-- Slots: `default({ item, index })`, `empty`, `loading`, and
-  `refresh({ pullDistance, progress, refreshing })`.
-- Events: `scroll({ scrollTop, startIndex, endIndex })`, `load-more`, and
-  `refresh`.
-- Methods: `scrollTo`, `scrollToIndex`, and `scrollToTop`.
+| Slot | Scope | Description |
+| --- | --- | --- |
+| `default` | `{ item, index }` | Renders each mounted row. |
+| `empty` | none | Rendered when `items` is empty and `loading` is false. |
+| `loading` | none | Loading row; defaults to “Loading more…”. |
+| `refresh` | `{ pullDistance, progress, refreshing }` | Pull-to-refresh indicator. `progress` is clamped from `0` to `1`. |
+
+#### Events
+
+| Event | Payload | When it fires | Usage |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | On container scroll. `endIndex` is exclusive. | `@scroll="onScroll"` |
+| `load-more` | none | Near the end when `hasMore` is true and `loading` is false. | `@load-more="loadMore"` |
+| `refresh` | none | After pulling past the refresh threshold and releasing. | `@refresh="refreshFirstPage"` |
+
+#### Exposed API
+
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Scrolls to a pixel offset inside the list. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Scrolls to a zero-based item index. `align` is `start`, `center`, or `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Scrolls to the start of the list. | `list?.scrollToTop()` |
 
 ### WindowDynamicVirtualScroll
 
@@ -355,20 +395,38 @@ const list = ref<VirtualScrollExpose>()
 | `refreshing` | `boolean` | `false` | Keeps the refresh indicator open during async work. |
 | `pullRefreshThreshold` | `number` | `64` | Pull distance required to emit `refresh`, in pixels. |
 
-#### Slots, events, and exposed API
+#### Slots
 
-- Slots: `default({ item, index })`, `empty`, `loading`, and
-  `refresh({ pullDistance, progress, refreshing })`.
-- Events: `scroll({ scrollTop, startIndex, endIndex })`, `load-more`, and
-  `refresh`. `scrollTop` is relative to the component start.
-- Methods: `scrollTo`, `scrollToIndex`, and `scrollToTop`. They scroll the
-  browser window; `scrollTo` accepts an offset relative to the list.
+| Slot | Scope | Description |
+| --- | --- | --- |
+| `default` | `{ item, index }` | Renders each mounted row. |
+| `empty` | none | Rendered when `items` is empty and `loading` is false. |
+| `loading` | none | Loading row; defaults to “Loading more…”. |
+| `refresh` | `{ pullDistance, progress, refreshing }` | Pull-to-refresh indicator. `progress` is clamped from `0` to `1`. |
+
+#### Events
+
+| Event | Payload | When it fires | Usage |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | On window scroll. `scrollTop` is relative to the component start. `endIndex` is exclusive. | `@scroll="onScroll"` |
+| `load-more` | none | Near the end when `hasMore` is true and `loading` is false. | `@load-more="loadMore"` |
+| `refresh` | none | After pulling past the refresh threshold and releasing. | `@refresh="refreshFirstPage"` |
+
+#### Exposed API
+
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Scrolls the window to a pixel offset relative to the list start. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Scrolls the window to a zero-based item index. `align` is `start`, `center`, or `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Scrolls the window to the component start. | `list?.scrollToTop()` |
 
 ### WindowGirdVirtualScroll
 
 Use `WindowGirdVirtualScroll` for a multi-column grid whose cards have a known,
 fixed height and whose viewport is the browser window. Virtualization happens
 by complete rows, so every visible column remains mounted together.
+
+#### Example
 
 ```vue
 <script setup lang="ts">
@@ -399,11 +457,49 @@ const products = Array.from({ length: 10_000 }, (_, id) => ({
 </template>
 ```
 
-`itemSize` is the height of one grid row. Content that exceeds it is clipped.
-`columns` defaults to `2`, `gap` defaults to `0`, and `overscan` defaults to
-one extra row before and after the visible range. The remaining list props,
-events, named slots, and exposed methods match `WindowDynamicVirtualScroll`.
-The default slot also receives `rowIndex` and `columnIndex`.
+#### Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `readonly T[]` | required | Data passed to the default slot. |
+| `itemSize` | `number` | required | Fixed height of each grid row in pixels. Overflow is clipped. |
+| `columns` | `number` | `2` | Number of columns in each row. |
+| `gap` | `number` | `0` | Spacing between rows and columns in pixels. |
+| `overscan` | `number` | `1` | Extra rows mounted before and after the visible range. |
+| `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key`, or index | Stable identity for each item. |
+| `ariaLabel` | `string` | `"Window virtual grid"` | Accessible label for the grid. |
+| `hasMore` | `boolean` | `false` | Indicates that another page can be loaded. |
+| `loading` | `boolean` | `false` | Prevents duplicate requests and shows the loading row. |
+| `loadingItemSize` | `number` | `itemSize` | Reserved loading-row height in pixels. |
+| `loadMoreThreshold` | `number` | `200` | Distance from the window bottom to the grid end that triggers `load-more`, in pixels. |
+| `pullToRefresh` | `boolean` | `false` | Enables refresh while the page is at `window.scrollY = 0`. |
+| `refreshing` | `boolean` | `false` | Keeps the refresh indicator open during async work. |
+| `pullRefreshThreshold` | `number` | `64` | Pull distance required to emit `refresh`, in pixels. |
+
+#### Slots
+
+| Slot | Scope | Description |
+| --- | --- | --- |
+| `default` | `{ item, index, rowIndex, columnIndex }` | Renders each mounted cell. |
+| `empty` | none | Rendered when `items` is empty and `loading` is false. |
+| `loading` | none | Loading row; defaults to “Loading more…”. |
+| `refresh` | `{ pullDistance, progress, refreshing }` | Pull-to-refresh indicator. `progress` is clamped from `0` to `1`. |
+
+#### Events
+
+| Event | Payload | When it fires | Usage |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | On window scroll. `scrollTop` is relative to the component start. `endIndex` is exclusive. | `@scroll="onScroll"` |
+| `load-more` | none | Near the end when `hasMore` is true and `loading` is false. | `@load-more="loadMore"` |
+| `refresh` | none | After pulling past the refresh threshold and releasing. | `@refresh="refreshFirstPage"` |
+
+#### Exposed API
+
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Scrolls the window to a pixel offset relative to the list start. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Scrolls the window to the row containing a zero-based item index. `align` is `start`, `center`, or `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Scrolls the window to the component start. | `list?.scrollToTop()` |
 
 ### ChatVirtualScroll
 
@@ -494,21 +590,21 @@ height added above the viewport and restores the reader's position.
 
 #### Events
 
-| Event | Payload | When it fires |
-| --- | --- | --- |
-| `scroll` | `{ scrollTop, startIndex, endIndex }` | On container scroll. |
-| `load-older` | none | Near the top when `hasOlder` is true and `loadingOlder` is false. |
-| `bottom-change` | `boolean` | When the viewport enters or leaves the bottom threshold. |
+| Event | Payload | When it fires | Usage |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | On container scroll. | `@scroll="onScroll"` |
+| `load-older` | none | Near the top when `hasOlder` is true and `loadingOlder` is false. | `@load-older="loadOlder"` |
+| `bottom-change` | `boolean` | When the viewport enters or leaves the bottom threshold. | `@bottom-change="onBottomChange"` |
 
 #### Exposed API
 
-| Member | Description |
-| --- | --- |
-| `isAtBottom` | Readonly boolean indicating whether the user is near the bottom. |
-| `scrollTo(position, options?)` | Scrolls to a pixel offset. |
-| `scrollToIndex(index, { align?, behavior? })` | Scrolls to a zero-based message index. |
-| `scrollToTop(behavior?)` | Scrolls to the oldest loaded message. |
-| `scrollToBottom(behavior?)` | Scrolls to the newest loaded message. |
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `isAtBottom` | Readonly boolean indicating whether the user is near the bottom. | `chat?.isAtBottom` |
+| `scrollTo(position, options?)` | Scrolls to a pixel offset. | `chat?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Scrolls to a zero-based message index. | `chat?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Scrolls to the oldest loaded message. | `chat?.scrollToTop()` |
+| `scrollToBottom(behavior?)` | Scrolls to the newest loaded message. | `chat?.scrollToBottom('smooth')` |
 
 ### ShortMediaFeed
 
@@ -576,23 +672,39 @@ keep persistent playback state in the parent.
 | `loading` | `boolean` | `false` | Prevents duplicate `load-more` requests. |
 | `loadMoreThreshold` | `number` | `2` | Remaining item count that triggers `load-more`. |
 
-#### Slots and events
+#### Slots
 
-| Kind | Name | Payload/scope | Description |
+| Slot | Scope | Description |
+| --- | --- | --- |
+| `default` | `{ item, index, active }` | Renders a mounted item; `active` marks the snapped item. |
+| `empty` | none | Rendered when `items` is empty. |
+
+#### Events
+
+| Event | Payload | When it fires | Usage |
 | --- | --- | --- | --- |
-| Slot | `default` | `{ item, index, active }` | Renders a mounted item; `active` marks the snapped item. |
-| Slot | `empty` | none | Rendered when `items` is empty. |
-| Event | `update:activeIndex` | `number` | Supports `v-model:active-index`. |
-| Event | `change` | `{ index, item }` | The active item changes. |
-| Event | `reach-start` | none | Navigation changes to the first item. |
-| Event | `reach-end` | none | Navigation changes to the last item. |
-| Event | `load-more` | none | Remaining items reach `loadMoreThreshold`. |
+| `update:activeIndex` | `number` | Supports `v-model:active-index`. | `v-model:active-index="activeIndex"` |
+| `change` | `{ index, item }` | The active item changes. | `@change="onChange"` |
+| `reach-start` | none | Navigation changes to the first item. | `@reach-start="onReachStart"` |
+| `reach-end` | none | Navigation changes to the last item. | `@reach-end="onReachEnd"` |
+| `load-more` | none | Remaining items reach `loadMoreThreshold`. | `@load-more="loadMore"` |
 
-#### Exposed API and keyboard controls
+#### Exposed API
 
-`scrollToIndex(index, options?)` scrolls to an item using standard
-`ScrollToOptions`. The viewport supports Arrow Up/Down, Page Up/Down, Home,
-and End.
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `scrollToIndex(index, options?)` | Scrolls to a zero-based item index using standard `ScrollToOptions`. | `feed?.scrollToIndex(10, { behavior: 'smooth' })` |
+
+#### Keyboard controls
+
+These keys work while the viewport is focused:
+
+| Key | Action |
+| --- | --- |
+| `ArrowDown`, `PageDown` | Moves to the next item. |
+| `ArrowUp`, `PageUp` | Moves to the previous item. |
+| `Home` | Moves to the first position. |
+| `End` | Moves to the last item. |
 
 For an unbounded feed, page data with `load-more` and keep a reasonable item
 window in the parent. Virtualization limits mounted DOM and media elements,
@@ -676,31 +788,74 @@ five slides are normally mounted in the middle of the collection.
 | `autoplayDelay` | `number` | `3000` | Delay in milliseconds between automatic transitions; values below `1` are clamped and non-finite values use the default. |
 | `autoplayLoop` | `boolean` | `true` | Returns to the first slide when reaching the end. |
 | `pauseOnHover` | `boolean` | `true` | Pauses autoplay when the carousel is hovered. |
+| `responsive` | `ResponsiveBreakpoint[]` | `undefined` | Overrides slide count, scroll step, and gap at container-width breakpoints. |
 
-#### Slots and events
+#### Responsive configuration
 
-| Kind | Name | Payload/scope | Description |
+The largest `breakpoint` not exceeding the carousel container width is used.
+If no breakpoint matches, the base props apply. Omitted fields fall back to
+the base props, not to another breakpoint.
+
+| Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| Slot | `default` | `{ item, index, active, visible }` | Renders each mounted slide. |
-| Slot | `empty` | none | Rendered when `items` is empty. |
-| Event | `update:activeIndex` | `number` | Supports `v-model:active-index`. |
-| Event | `change` | `{ index, item }` | The first visible slide changes. |
-| Event | `reach-start` | none | Navigation changes to the first position. |
-| Event | `reach-end` | none | Navigation changes to the final valid position. |
-| Event | `load-more` | none | Remaining slides reach `loadMoreThreshold`. |
+| `breakpoint` | `number` | required | Minimum container width in pixels. |
+| `slidesPerView` | `number` | `slidesPerView` | Slides visible at this breakpoint. |
+| `slidesToScroll` | `number` | `slidesToScroll` | Slides moved by `next()` and `previous()`. |
+| `gap` | `number` | `gap` | Space between slides in pixels. |
 
-#### Exposed API and keyboard controls
+```vue
+<VirtualCarousel
+  :items="products"
+  :slides-per-view="1"
+  :responsive="[
+    { breakpoint: 640, slidesPerView: 2, gap: 12 },
+    { breakpoint: 1024, slidesPerView: 3, slidesToScroll: 2, gap: 16 },
+  ]"
+>
+  <template #default="{ item }"><ProductCard :product="item" /></template>
+</VirtualCarousel>
+```
 
-| Method | Description |
+#### Slots
+
+| Slot | Scope | Description |
+| --- | --- | --- |
+| `default` | `{ item, index, active, visible }` | Renders each mounted slide. |
+| `empty` | none | Rendered when `items` is empty. |
+
+#### Events
+
+| Event | Payload | When it fires | Usage |
+| --- | --- | --- | --- |
+| `update:activeIndex` | `number` | Supports `v-model:active-index`. | `v-model:active-index="activeIndex"` |
+| `change` | `{ index, item }` | The first visible slide changes. | `@change="onChange"` |
+| `reach-start` | none | Navigation changes to the first position. | `@reach-start="onReachStart"` |
+| `reach-end` | none | Navigation changes to the final valid position. | `@reach-end="onReachEnd"` |
+| `load-more` | none | Remaining slides reach `loadMoreThreshold`. | `@load-more="loadMore"` |
+
+#### Exposed API
+
+| Method / state | Description | Template example |
+| --- | --- | --- |
+| `next(behavior?)` | Advances by `slidesToScroll`; defaults to smooth scrolling. | `carousel?.next()` |
+| `previous(behavior?)` | Moves back by `slidesToScroll`. | `carousel?.previous()` |
+| `scrollToIndex(index, options?)` | Makes the index the first visible slide. | `carousel?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `startAutoplay()` | Starts or restarts the timer when `autoplay` is true and items are available. | `carousel?.startAutoplay()` |
+| `stopAutoplay()` | Clears the current timer; set `autoplay=false` to keep automatic progression disabled. | `carousel?.stopAutoplay()` |
+
+#### Keyboard controls
+
+These keys work while the viewport is focused:
+
+| Key | Action |
 | --- | --- |
-| `next(behavior?)` | Advances by `slidesToScroll`; defaults to smooth scrolling. |
-| `previous(behavior?)` | Moves back by `slidesToScroll`. |
-| `scrollToIndex(index, options?)` | Makes the index the first visible slide. |
-| `startAutoplay()` | Starts or restarts automatic slide progression. |
-| `stopAutoplay()` | Stops automatic slide progression. |
+| `ArrowRight`, `PageDown` | Advances by `slidesToScroll`, equivalent to `next()`. |
+| `ArrowLeft`, `PageUp` | Moves back by `slidesToScroll`, equivalent to `previous()`. |
+| `Home` | Moves to the first position. |
+| `End` | Moves to the final valid first-slide position. |
 
-The viewport supports Arrow Left/Right, Page Up/Down, Home, and End. A
-long-distance smooth jump becomes immediate so virtualized gaps are not shown.
+A long-distance smooth jump becomes immediate so virtualized gaps are not
+shown.
 
 #### Autoplay example
 
@@ -733,17 +888,134 @@ const products = ref(loadProducts())
 </template>
 ```
 
-Autoplay also starts when an initially empty `items` collection receives data.
-`stopAutoplay()` pauses the timer and `startAutoplay()` resumes it while the
-`autoplay` prop remains enabled. Changes to `autoplayDelay`, `autoplayLoop`, and
-`pauseOnHover` take effect at runtime.
+| Action / condition | Result |
+| --- | --- |
+| `autoplay=true` | Starts automatically, including when an initially empty `items` collection receives data. |
+| `stopAutoplay()` | Clears the current timer. Later navigation or pointer events may restart it when `autoplay` remains true. |
+| `startAutoplay()` | Starts or restarts the timer when `autoplay` is true and items are available. |
+| `autoplay=false` | Disables automatic progression until the prop is enabled again. |
+| `autoplayLoop` | At the end, true returns to the start; false stops the timer. |
+| `pauseOnHover` | When true, hovering pauses the timer; leaving resumes it if autoplay is enabled. |
+| Change autoplay settings | `autoplayDelay`, `autoplayLoop`, and `pauseOnHover` take effect at runtime. |
+
+### SkeletonLoader
+
+`SkeletonLoader` renders a placeholder with a shimmer animation. Use it on its
+own or inside a list's `loading` slot. It stays visible while mounted; control
+standalone visibility with `v-if`, or let the list's `loading` prop control the
+slot.
+
+#### Example
+
+Import the library stylesheet once, as shown below or in your application entry
+point. Set `loading` to false when your data request finishes.
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { SkeletonLoader } from 'vue-virtual-flow'
+import 'vue-virtual-flow/style.css'
+
+const loading = ref(true)
+</script>
+
+<template>
+  <SkeletonLoader
+    v-if="loading"
+    width="100%"
+    :height="120"
+    aria-label="Loading content…"
+  />
+  <p v-else>Content is ready.</p>
+</template>
+```
+
+#### Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `width` | `number \| string` | `'100%'` | Width in pixels for numbers, or a CSS length such as `'60%'` or `'12rem'`. |
+| `height` | `number \| string` | `16` | Height in pixels for numbers, or a CSS length. |
+| `variant` | `'rectangle' \| 'rounded' \| 'circle'` | `'rounded'` | Placeholder shape. Use equal width and height for a circle. |
+| `animated` | `boolean` | `true` | Enables the shimmer animation. |
+| `ariaLabel` | `string` | `'Loading…'` | Accessible label for the placeholder's `role="status"`. |
+
+```vue
+<SkeletonLoader variant="circle" :width="48" :height="48" />
+<SkeletonLoader variant="rectangle" :height="180" />
+<SkeletonLoader width="60%" :height="20" :animated="false" />
+```
+
+The animation automatically stops when the user prefers reduced motion. When
+composing several decorative skeletons under a shared loading message, pass
+`aria-hidden="true"` to each skeleton to avoid repeated accessible labels.
+
+#### Slots, events, and exposed API
+
+| API | Support |
+| --- | --- |
+| Slots | None. The component renders a single placeholder. |
+| Events | No custom events. |
+| Exposed methods | None. Control the component with props and `v-if`. |
+
+#### Actions
+
+| Action | Usage |
+| --- | --- |
+| Show or hide | `<SkeletonLoader v-if="loading" />` |
+| Use a circle | `<SkeletonLoader variant="circle" :width="48" :height="48" />` |
+| Disable shimmer | `<SkeletonLoader :animated="false" />` |
+| Set the accessible label | `aria-label="Loading…"` |
+| Hide a decorative skeleton from screen readers | `aria-hidden="true"` |
+
+#### Use in a loading slot
+
+Import `SkeletonLoader` alongside `VirtualList`. With your existing `items` and
+`loading` state, replace the loading message with a skeleton:
+
+```vue
+<VirtualList :items="items" :loading="loading" :loading-item-size="64">
+  <template #default="{ item }"><FeedCard :item="item" /></template>
+  <template #loading>
+    <SkeletonLoader :height="40" aria-label="Loading the next page…" />
+  </template>
+</VirtualList>
+```
+
+| Setting | Usage |
+| --- | --- |
+| Components with a `loading` slot | `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`, `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll`. |
+| List `loading` prop | Set to true to show the slot; false to hide it. |
+| Skeleton `height` prop | Sets the placeholder height, for example `40` pixels. |
+| List `loadingItemSize` prop | Reserve space for the skeleton plus the row's vertical padding. Example: `40px + 1.5rem = 64px` at a 16px root font size. |
+
+#### Customize appearance
+
+Set these CSS custom properties on the skeleton or a parent element:
+
+| CSS custom property | Default | Description |
+| --- | --- | --- |
+| `--skeleton-background` | `#e2e8f0` | Base background color. |
+| `--skeleton-highlight` | `rgb(255 255 255 / 60%)` | Shimmer highlight color. |
+| `--skeleton-radius` | `8px` | Corner radius for the `rounded` variant. |
+
+```vue
+<SkeletonLoader
+  :height="80"
+  style="--skeleton-background: #334155; --skeleton-highlight: #475569; --skeleton-radius: 12px"
+/>
+```
 
 ## Shared recipes
 
 ### Viewport height
 
-Container-based components accept a number or CSS height string. Numbers are
-converted to pixels. `height="fill"` is shorthand for `height="100%"`:
+| Value / component | Behavior |
+| --- | --- |
+| `:height="400"` | Numeric values become pixels. |
+| `height="60vh"` | CSS height strings are passed through. |
+| `height="fill"` / `height="100%"` | Uses the parent height. The parent must have an explicit height; development builds warn if this resolves to `0px`. |
+| `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll` | Use the browser window and do not accept a `height` prop. |
 
 ```vue
 <div class="list-container">
@@ -760,16 +1032,14 @@ converted to pixels. `height="fill"` is shorthand for `height="100%"`:
 }
 ```
 
-A percentage height only works when its parent has an explicit height.
-Development builds warn when it resolves to `0px`.
-`WindowDynamicVirtualScroll` and `WindowGirdVirtualScroll` use the browser
-window and have no `height` prop.
-
 ### Stable item keys
 
-For object items, components try `item.id` and then `item.key`. Primitive items
-fall back to their index. Provide `itemKey` when the identifier has another
-name:
+| Configuration / data | Key selection |
+| --- | --- |
+| `:item-key="(item, index) => …"` | Uses the function result. |
+| `item-key="uuid"` | Uses a valid `item.uuid`; otherwise tries `id`, `key`, then the index. |
+| Object without an explicit `itemKey` | Tries `item.id`, then `item.key`, then the index. |
+| Primitive without a key function | Falls back to the index. |
 
 ```vue
 <VirtualList :items="users" item-key="uuid" />
@@ -786,8 +1056,11 @@ variable-height item.
 
 ### Load more
 
-List components use a pixel distance threshold. `ShortMediaFeed` and
-`VirtualCarousel` use a remaining-item threshold.
+| Component | `loadMoreThreshold` | Event |
+| --- | --- | --- |
+| `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`, `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll` | Distance to the end in pixels. | `load-more` |
+| `ShortMediaFeed` | Number of items after the active item. | `load-more` |
+| `VirtualCarousel` | Number of slides after the visible group. | `load-more` |
 
 ```vue
 <script setup lang="ts">
@@ -819,15 +1092,20 @@ async function loadMore() {
 </template>
 ```
 
-The event fires at most once for the current item count. Appending items allows
-the next request. Keep `loading` true for the entire request and set `hasMore`
-to false after the final page.
+| Step / condition | Action / result |
+| --- | --- |
+| Receive `load-more` | Start the next request only when `loading` is false and `hasMore` is true. |
+| Request in progress | Keep `loading=true` for the entire request. |
+| Receive the next page | Append its items. The event normally fires once per current item count; increasing that count permits another request. |
+| Request finished | Set `loading=false`; use `finally` when requests may fail. |
+| Final page | Set `hasMore=false` to stop further requests. |
 
 ### Pull to refresh
 
-Pull-to-refresh is available on `VirtualList`, `DynamicVirtualScroll`,
-`VirtualScroll`, `WindowDynamicVirtualScroll`, and
-`WindowGirdVirtualScroll`:
+| Component | Gesture starts at |
+| --- | --- |
+| `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll` | The top of the component container. |
+| `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll` | `window.scrollY = 0` |
 
 ```vue
 <VirtualList
@@ -844,10 +1122,38 @@ Pull-to-refresh is available on `VirtualList`, `DynamicVirtualScroll`,
 </VirtualList>
 ```
 
-The single-touch gesture begins only at the top. Set `refreshing` to true while
-the async refresh runs, then return it to false to close the indicator.
+| Step / state | Action / result |
+| --- | --- |
+| Enable the gesture | `pull-to-refresh` |
+| Pull down with one finger at the top | Updates the `refresh` slot scope: `pullDistance`, `progress`, and `refreshing`. |
+| Release after reaching `pullRefreshThreshold` | Emits `refresh` without a payload. |
+| Handle `refresh` | Set `refreshing=true` while fetching fresh data to keep the indicator open. |
+| Finish refreshing | Set `refreshing=false` to close the indicator. |
 
 ## TypeScript exports
+
+| Type | Purpose |
+| --- | --- |
+| `ChatVirtualScrollExpose` | Chat ref API and `isAtBottom` state. |
+| `ChatVirtualScrollProps<T>` | Chat component props. |
+| `DynamicVirtualScrollProps<T>` | Variable-height list props. |
+| `ItemKey<T>` | Property name or function used to identify an item. |
+| `ResponsiveBreakpoint` | Carousel container breakpoint and optional layout overrides. |
+| `ScrollAlignment` | `'start'`, `'center'`, or `'end'` for list index scrolling. |
+| `ShortMediaFeedChangeEvent<T>` | Feed `change` payload: `{ index, item }`. |
+| `ShortMediaFeedExpose` | Feed ref API. |
+| `ShortMediaFeedProps<T>` | Feed props. |
+| `SkeletonLoaderProps` | Skeleton size, shape, animation, and accessible label. |
+| `VirtualCarouselChangeEvent<T>` | Carousel `change` payload: `{ index, item }`. |
+| `VirtualCarouselExpose` | Carousel navigation and autoplay ref API. |
+| `VirtualCarouselProps<T>` | Carousel props, including responsive settings. |
+| `VirtualListExpose` | Alias of `VirtualScrollExpose`. |
+| `VirtualListProps<T>` | Alias of `DynamicVirtualScrollProps<T>`. |
+| `VirtualScrollEvent` | Scroll payload: `{ scrollTop, startIndex, endIndex }`; `endIndex` is exclusive. |
+| `VirtualScrollExpose` | Shared ref API for fixed, dynamic, and window lists/grids. |
+| `VirtualScrollProps<T>` | Fixed-height list props. |
+| `WindowDynamicVirtualScrollProps<T>` | Window-based variable-height list props. |
+| `WindowGirdVirtualScrollProps<T>` | Window-based fixed-row grid props. |
 
 ```ts
 import type {
@@ -855,10 +1161,12 @@ import type {
   ChatVirtualScrollProps,
   DynamicVirtualScrollProps,
   ItemKey,
+  ResponsiveBreakpoint,
   ScrollAlignment,
   ShortMediaFeedChangeEvent,
   ShortMediaFeedExpose,
   ShortMediaFeedProps,
+  SkeletonLoaderProps,
   VirtualCarouselChangeEvent,
   VirtualCarouselExpose,
   VirtualCarouselProps,
@@ -873,6 +1181,22 @@ import type {
 ```
 
 ## Development and release
+
+| Command / lifecycle | Action |
+| --- | --- |
+| `bun install` | Install dependencies. |
+| `bunx playwright install chromium firefox webkit` | Install browsers for smoke tests. |
+| `bun run dev` | Start the playground. |
+| `bun run typecheck` | Check TypeScript and Vue types. |
+| `bun run test` | Run unit tests. |
+| `bun run test:watch` | Run unit tests in watch mode. |
+| `bun run build` | Typecheck and build the package with type declarations. |
+| `bun run typecheck:package` | Check ESM and CommonJS consumer types after building. |
+| `bun run lint:package` | Validate package exports and type packaging after building. |
+| `bun run test:browser` | Run Playwright browser tests. |
+| `bun run check` | Run all checks: unit tests, build, consumer types, package lint, and browser tests. |
+| `npm pack --dry-run` | Inspect the files that will be published. |
+| `prepublishOnly` | Automatically runs `bun run check` before publishing. |
 
 ```bash
 bun install

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2026-09-29
+
+### Added
+- **SkeletonLoader**: Added configurable dimensions, rectangle/rounded/circle variants, shimmer animation, reduced-motion support, and an accessible loading label
+- **Public API**: Exported `SkeletonLoader` and `SkeletonLoaderProps`, and registered the component in the Vue plugin
+- **Playground**: Added skeleton placeholders to the load-more demo
+
+### Improved
+- Added English and Vietnamese SkeletonLoader usage guides
+- Converted API references and usage recipes into tables, including event listeners, ref actions, responsive configuration, autoplay, and release commands
+
 ## [0.0.4] - 2026-09-11
 
 ### Added

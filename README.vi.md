@@ -22,6 +22,7 @@ vẫn phản hồi nhanh mà component không áp đặt giao diện của từn
   - [ChatVirtualScroll](#chatvirtualscroll)
   - [ShortMediaFeed](#shortmediafeed)
   - [VirtualCarousel](#virtualcarousel)
+  - [SkeletonLoader](#skeletonloader)
 - [Cách dùng chung](#cách-dùng-chung)
   - [Chiều cao viewport](#chiều-cao-viewport)
   - [Key ổn định cho item](#key-ổn-định-cho-item)
@@ -44,9 +45,18 @@ Import stylesheet của thư viện một lần tại entry point của ứng d�
 import 'vue-virtual-flow/style.css'
 ```
 
-Package yêu cầu Vue `^3.4.0` và Node.js `>=18`.
+| Dependency | Yêu cầu |
+| --- | --- |
+| Vue | `^3.4.0` |
+| Node.js | `>=18` |
 
 ## Bắt đầu nhanh
+
+| Cách đăng ký | Cách dùng |
+| --- | --- |
+| Import cục bộ | `import { VirtualList, SkeletonLoader } from 'vue-virtual-flow'` |
+| Plugin global | `createApp(App).use(VueVirtualScroll)` |
+| Style dùng chung | `import 'vue-virtual-flow/style.css'` |
 
 Import component cục bộ:
 
@@ -85,7 +95,7 @@ createApp(App).use(VueVirtualScroll).mount('#app')
 
 Plugin đăng ký `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
 `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll`, `ChatVirtualScroll`,
-`ShortMediaFeed` và `VirtualCarousel`.
+`ShortMediaFeed`, `VirtualCarousel` và `SkeletonLoader`.
 
 ## Chọn component
 
@@ -99,8 +109,22 @@ Plugin đăng ký `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
 | `ChatVirtualScroll` | Tin nhắn mới được thêm ở cuối và lịch sử cũ được thêm ở đầu. | Container của component | Động, tự đo |
 | `ShortMediaFeed` | Mỗi lần cần snap một item đầy viewport. | Container của component | Một viewport cho mỗi item |
 | `VirtualCarousel` | Cần hiển thị và snap nhiều slide theo chiều ngang. | Container của component | Tính từ chiều rộng container |
+| `SkeletonLoader` | Cần hiển thị khối giữ chỗ khi đang tải nội dung. | Không có | Tùy chỉnh chiều rộng và chiều cao |
 
 ## Hướng dẫn từng component
+
+Event được lắng nghe bằng cú pháp template của Vue; các method được gọi qua
+ref của component. Các bảng bên dưới dùng tên ref là `list`, `chat`, `feed`
+hoặc `carousel`.
+
+| Thao tác | Cách dùng |
+| --- | --- |
+| Khai báo ref có type | `const list = ref<VirtualScrollExpose>()` |
+| Gắn ref vào component | `<VirtualScroll ref="list" ... />` |
+| Gọi sau khi mount trong script | `list.value?.scrollToIndex(10)` |
+| Gọi từ event trong template | `@click="list?.scrollToIndex(10)"` |
+| Chọn cách cuộn | Truyền `{ behavior: 'smooth' }` cho `scrollTo` / `scrollToIndex`, hoặc `'smooth'` cho `scrollToTop`, `scrollToBottom`, `next`, `previous`. |
+| Căn vị trí item trong danh sách | `scrollToIndex(index, { align: 'start' })` / `'center'` / `'end'` |
 
 ### VirtualList và DynamicVirtualScroll
 
@@ -199,19 +223,19 @@ và thao tác nhảy tới item chưa được đo chính xác hơn.
 
 #### Events
 
-| Event | Payload | Thời điểm emit |
-| --- | --- | --- |
-| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi container cuộn. `endIndex` là mốc không bao gồm item tại index đó. |
-| `load-more` | không có | Gần cuối danh sách khi `hasMore` là true và `loading` là false. |
-| `refresh` | không có | Khi kéo qua ngưỡng refresh rồi thả tay. |
+| Event | Payload | Thời điểm emit | Cách dùng |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi container cuộn. `endIndex` là mốc không bao gồm item tại index đó. | `@scroll="onScroll"` |
+| `load-more` | không có | Gần cuối danh sách khi `hasMore` là true và `loading` là false. | `@load-more="loadMore"` |
+| `refresh` | không có | Khi kéo qua ngưỡng refresh rồi thả tay. | `@refresh="refreshFirstPage"` |
 
 #### API qua ref
 
-| Method | Mô tả |
-| --- | --- |
-| `scrollTo(position, options?)` | Cuộn tới offset pixel bên trong danh sách. |
-| `scrollToIndex(index, { align?, behavior? })` | Cuộn tới index bắt đầu từ 0. `align` nhận `start`, `center` hoặc `end`. |
-| `scrollToTop(behavior?)` | Cuộn về đầu danh sách. |
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Cuộn tới offset pixel bên trong danh sách. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Cuộn tới index bắt đầu từ 0. `align` nhận `start`, `center` hoặc `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Cuộn về đầu danh sách. | `list?.scrollToTop()` |
 
 Smooth scroll ở khoảng cách xa tự chuyển thành nhảy tức thời vì các hàng chưa
 đo có thể làm thay đổi offset đích trong lúc cuộn.
@@ -285,13 +309,30 @@ thay đổi kích thước, hãy dùng `VirtualList`.
 | `refreshing` | `boolean` | `false` | Giữ indicator mở trong lúc refresh bất đồng bộ. |
 | `pullRefreshThreshold` | `number` | `64` | Khoảng kéo cần thiết để emit `refresh`, tính bằng pixel. |
 
-#### Slots, events và API qua ref
+#### Slots
 
-- Slots: `default({ item, index })`, `empty`, `loading` và
-  `refresh({ pullDistance, progress, refreshing })`.
-- Events: `scroll({ scrollTop, startIndex, endIndex })`, `load-more` và
-  `refresh`.
-- Methods: `scrollTo`, `scrollToIndex` và `scrollToTop`.
+| Slot | Scope | Mô tả |
+| --- | --- | --- |
+| `default` | `{ item, index }` | Render từng hàng đang được mount. |
+| `empty` | không có | Render khi `items` rỗng và `loading` là false. |
+| `loading` | không có | Hàng loading; mặc định là “Loading more…”. |
+| `refresh` | `{ pullDistance, progress, refreshing }` | Indicator kéo để làm mới. `progress` được giới hạn từ `0` tới `1`. |
+
+#### Events
+
+| Event | Payload | Thời điểm emit | Cách dùng |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi container cuộn. `endIndex` là mốc không bao gồm item tại index đó. | `@scroll="onScroll"` |
+| `load-more` | không có | Gần cuối danh sách khi `hasMore` là true và `loading` là false. | `@load-more="loadMore"` |
+| `refresh` | không có | Khi kéo qua ngưỡng refresh rồi thả tay. | `@refresh="refreshFirstPage"` |
+
+#### API qua ref
+
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Cuộn tới offset pixel bên trong danh sách. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Cuộn tới item có index bắt đầu từ 0. `align` nhận `start`, `center` hoặc `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Cuộn về đầu danh sách. | `list?.scrollToTop()` |
 
 ### WindowDynamicVirtualScroll
 
@@ -355,20 +396,38 @@ const list = ref<VirtualScrollExpose>()
 | `refreshing` | `boolean` | `false` | Giữ indicator mở trong lúc refresh bất đồng bộ. |
 | `pullRefreshThreshold` | `number` | `64` | Khoảng kéo cần thiết để emit `refresh`, tính bằng pixel. |
 
-#### Slots, events và API qua ref
+#### Slots
 
-- Slots: `default({ item, index })`, `empty`, `loading` và
-  `refresh({ pullDistance, progress, refreshing })`.
-- Events: `scroll({ scrollTop, startIndex, endIndex })`, `load-more` và
-  `refresh`. `scrollTop` được tính tương đối từ đầu component.
-- Methods: `scrollTo`, `scrollToIndex` và `scrollToTop`. Các method này cuộn
-  cửa sổ trình duyệt; `scrollTo` nhận offset tương đối so với đầu danh sách.
+| Slot | Scope | Mô tả |
+| --- | --- | --- |
+| `default` | `{ item, index }` | Render từng hàng đang được mount. |
+| `empty` | không có | Render khi `items` rỗng và `loading` là false. |
+| `loading` | không có | Hàng loading; mặc định là “Loading more…”. |
+| `refresh` | `{ pullDistance, progress, refreshing }` | Indicator kéo để làm mới. `progress` được giới hạn từ `0` tới `1`. |
+
+#### Events
+
+| Event | Payload | Thời điểm emit | Cách dùng |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi cửa sổ cuộn. `scrollTop` tính tương đối từ đầu component. `endIndex` là mốc không bao gồm item tại index đó. | `@scroll="onScroll"` |
+| `load-more` | không có | Gần cuối danh sách khi `hasMore` là true và `loading` là false. | `@load-more="loadMore"` |
+| `refresh` | không có | Khi kéo qua ngưỡng refresh rồi thả tay. | `@refresh="refreshFirstPage"` |
+
+#### API qua ref
+
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Cuộn cửa sổ tới offset pixel tương đối so với đầu danh sách. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Cuộn cửa sổ tới item có index bắt đầu từ 0. `align` nhận `start`, `center` hoặc `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Cuộn cửa sổ về đầu component. | `list?.scrollToTop()` |
 
 ### WindowGirdVirtualScroll
 
 Dùng `WindowGirdVirtualScroll` cho grid nhiều cột có card với chiều cao cố định
 đã biết và dùng cửa sổ trình duyệt làm viewport. Component virtualize theo cả
 hàng để các cột đang hiển thị luôn được mount cùng nhau.
+
+#### Ví dụ
 
 ```vue
 <script setup lang="ts">
@@ -399,11 +458,49 @@ const products = Array.from({ length: 10_000 }, (_, id) => ({
 </template>
 ```
 
-`itemSize` là chiều cao của một hàng grid; nội dung vượt quá kích thước này sẽ
-bị ẩn. `columns` mặc định là `2`, `gap` mặc định là `0`, còn `overscan` mặc
-định render thêm một hàng trước và sau vùng nhìn thấy. Các prop list còn lại,
-event, named slot và method qua ref giống `WindowDynamicVirtualScroll`. Default
-slot nhận thêm `rowIndex` và `columnIndex`.
+#### Props
+
+| Prop | Kiểu | Mặc định | Mô tả |
+| --- | --- | --- | --- |
+| `items` | `readonly T[]` | bắt buộc | Dữ liệu truyền vào default slot. |
+| `itemSize` | `number` | bắt buộc | Chiều cao cố định của mỗi hàng grid, tính bằng pixel. Nội dung vượt quá bị ẩn. |
+| `columns` | `number` | `2` | Số cột trên mỗi hàng. |
+| `gap` | `number` | `0` | Khoảng cách giữa các hàng và cột, tính bằng pixel. |
+| `overscan` | `number` | `1` | Số hàng mount thêm trước và sau vùng đang hiển thị. |
+| `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key` hoặc index | Định danh ổn định cho mỗi item. |
+| `ariaLabel` | `string` | `"Window virtual grid"` | Nhãn hỗ trợ khả năng tiếp cận cho grid. |
+| `hasMore` | `boolean` | `false` | Cho biết vẫn còn trang dữ liệu tiếp theo. |
+| `loading` | `boolean` | `false` | Ngăn request trùng và hiển thị hàng loading. |
+| `loadingItemSize` | `number` | `itemSize` | Chiều cao dành cho hàng loading, tính bằng pixel. |
+| `loadMoreThreshold` | `number` | `200` | Khoảng cách từ đáy cửa sổ tới cuối grid để emit `load-more`, tính bằng pixel. |
+| `pullToRefresh` | `boolean` | `false` | Bật refresh khi trang đang ở `window.scrollY = 0`. |
+| `refreshing` | `boolean` | `false` | Giữ indicator mở trong lúc refresh bất đồng bộ. |
+| `pullRefreshThreshold` | `number` | `64` | Khoảng kéo cần thiết để emit `refresh`, tính bằng pixel. |
+
+#### Slots
+
+| Slot | Scope | Mô tả |
+| --- | --- | --- |
+| `default` | `{ item, index, rowIndex, columnIndex }` | Render từng ô đang được mount. |
+| `empty` | không có | Render khi `items` rỗng và `loading` là false. |
+| `loading` | không có | Hàng loading; mặc định là “Loading more…”. |
+| `refresh` | `{ pullDistance, progress, refreshing }` | Indicator kéo để làm mới. `progress` được giới hạn từ `0` tới `1`. |
+
+#### Events
+
+| Event | Payload | Thời điểm emit | Cách dùng |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi cửa sổ cuộn. `scrollTop` tính tương đối từ đầu component. `endIndex` là mốc không bao gồm item tại index đó. | `@scroll="onScroll"` |
+| `load-more` | không có | Gần cuối danh sách khi `hasMore` là true và `loading` là false. | `@load-more="loadMore"` |
+| `refresh` | không có | Khi kéo qua ngưỡng refresh rồi thả tay. | `@refresh="refreshFirstPage"` |
+
+#### API qua ref
+
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `scrollTo(position, options?)` | Cuộn cửa sổ tới offset pixel tương đối so với đầu danh sách. | `list?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Cuộn cửa sổ tới hàng chứa item có index bắt đầu từ 0. `align` nhận `start`, `center` hoặc `end`. | `list?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Cuộn cửa sổ về đầu component. | `list?.scrollToTop()` |
 
 ### ChatVirtualScroll
 
@@ -493,21 +590,21 @@ chiều cao được thêm phía trên viewport và khôi phục vị trí của
 
 #### Events
 
-| Event | Payload | Thời điểm emit |
-| --- | --- | --- |
-| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi container cuộn. |
-| `load-older` | không có | Gần đầu khi `hasOlder` là true và `loadingOlder` là false. |
-| `bottom-change` | `boolean` | Khi viewport đi vào hoặc rời ngưỡng ở cuối. |
+| Event | Payload | Thời điểm emit | Cách dùng |
+| --- | --- | --- | --- |
+| `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi container cuộn. | `@scroll="onScroll"` |
+| `load-older` | không có | Gần đầu khi `hasOlder` là true và `loadingOlder` là false. | `@load-older="loadOlder"` |
+| `bottom-change` | `boolean` | Khi viewport đi vào hoặc rời ngưỡng ở cuối. | `@bottom-change="onBottomChange"` |
 
 #### API qua ref
 
-| Member | Mô tả |
-| --- | --- |
-| `isAtBottom` | Boolean readonly cho biết người dùng có đang gần cuối hay không. |
-| `scrollTo(position, options?)` | Cuộn tới offset pixel. |
-| `scrollToIndex(index, { align?, behavior? })` | Cuộn tới index tin nhắn bắt đầu từ 0. |
-| `scrollToTop(behavior?)` | Cuộn tới tin nhắn cũ nhất đã tải. |
-| `scrollToBottom(behavior?)` | Cuộn tới tin nhắn mới nhất đã tải. |
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `isAtBottom` | Boolean readonly cho biết người dùng có đang gần cuối hay không. | `chat?.isAtBottom` |
+| `scrollTo(position, options?)` | Cuộn tới offset pixel. | `chat?.scrollTo(200, { behavior: 'smooth' })` |
+| `scrollToIndex(index, options?)` | Cuộn tới index tin nhắn bắt đầu từ 0. | `chat?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToTop(behavior?)` | Cuộn tới tin nhắn cũ nhất đã tải. | `chat?.scrollToTop()` |
+| `scrollToBottom(behavior?)` | Cuộn tới tin nhắn mới nhất đã tải. | `chat?.scrollToBottom('smooth')` |
 
 ### ShortMediaFeed
 
@@ -575,22 +672,39 @@ vậy hãy lưu playback state cần duy trì ở component cha.
 | `loading` | `boolean` | `false` | Ngăn request `load-more` bị lặp. |
 | `loadMoreThreshold` | `number` | `2` | Số item còn lại để kích hoạt `load-more`. |
 
-#### Slots và events
+#### Slots
 
-| Loại | Tên | Payload/scope | Mô tả |
+| Slot | Scope | Mô tả |
+| --- | --- | --- |
+| `default` | `{ item, index, active }` | Render item đang mount; `active` đánh dấu item đang snap. |
+| `empty` | không có | Render khi `items` rỗng. |
+
+#### Events
+
+| Event | Payload | Thời điểm emit | Cách dùng |
 | --- | --- | --- | --- |
-| Slot | `default` | `{ item, index, active }` | Render item đang mount; `active` đánh dấu item đang snap. |
-| Slot | `empty` | không có | Render khi `items` rỗng. |
-| Event | `update:activeIndex` | `number` | Hỗ trợ `v-model:active-index`. |
-| Event | `change` | `{ index, item }` | Khi item active thay đổi. |
-| Event | `reach-start` | không có | Khi điều hướng chuyển tới item đầu. |
-| Event | `reach-end` | không có | Khi điều hướng chuyển tới item cuối. |
-| Event | `load-more` | không có | Khi số item còn lại đạt `loadMoreThreshold`. |
+| `update:activeIndex` | `number` | Hỗ trợ `v-model:active-index`. | `v-model:active-index="activeIndex"` |
+| `change` | `{ index, item }` | Khi item active thay đổi. | `@change="onChange"` |
+| `reach-start` | không có | Khi điều hướng chuyển tới item đầu. | `@reach-start="onReachStart"` |
+| `reach-end` | không có | Khi điều hướng chuyển tới item cuối. | `@reach-end="onReachEnd"` |
+| `load-more` | không có | Khi số item còn lại đạt `loadMoreThreshold`. | `@load-more="loadMore"` |
 
-#### API qua ref và bàn phím
+#### API qua ref
 
-`scrollToIndex(index, options?)` cuộn tới item bằng `ScrollToOptions` tiêu
-chuẩn. Viewport hỗ trợ Arrow Up/Down, Page Up/Down, Home và End.
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `scrollToIndex(index, options?)` | Cuộn tới item có index bắt đầu từ 0, nhận `ScrollToOptions` chuẩn. | `feed?.scrollToIndex(10, { behavior: 'smooth' })` |
+
+#### Điều khiển bàn phím
+
+Các phím sau hoạt động khi viewport có focus:
+
+| Phím | Thao tác |
+| --- | --- |
+| `ArrowDown`, `PageDown` | Chuyển tới item tiếp theo. |
+| `ArrowUp`, `PageUp` | Chuyển tới item trước. |
+| `Home` | Chuyển tới vị trí đầu. |
+| `End` | Chuyển tới item cuối. |
 
 Với feed không giới hạn, hãy tải theo trang bằng `load-more` và chỉ giữ một cửa
 sổ dữ liệu hợp lý ở component cha. Virtualization giới hạn DOM và media element
@@ -673,31 +787,74 @@ thường tối đa năm slide được mount ở giữa collection.
 | `autoplayDelay` | `number` | `3000` | Thời gian chờ giữa các lần tự động chuyển, tính bằng mili giây; giá trị dưới `1` được giới hạn và giá trị không hữu hạn dùng mặc định. |
 | `autoplayLoop` | `boolean` | `true` | Quay lại slide đầu tiên khi đến cuối. |
 | `pauseOnHover` | `boolean` | `true` | Tạm dừng autoplay khi con trỏ nằm trên carousel. |
+| `responsive` | `ResponsiveBreakpoint[]` | `undefined` | Ghi đè số slide hiển thị, bước cuộn và khoảng cách theo breakpoint chiều rộng container. |
 
-#### Slots và events
+#### Cấu hình responsive
 
-| Loại | Tên | Payload/scope | Mô tả |
+Component chọn `breakpoint` lớn nhất không vượt quá chiều rộng container của
+carousel. Nếu không có breakpoint phù hợp, component dùng các prop gốc.
+Trường bị bỏ qua dùng prop gốc, không kế thừa từ breakpoint khác.
+
+| Trường | Kiểu | Mặc định | Mô tả |
 | --- | --- | --- | --- |
-| Slot | `default` | `{ item, index, active, visible }` | Render từng slide đang mount. |
-| Slot | `empty` | không có | Render khi `items` rỗng. |
-| Event | `update:activeIndex` | `number` | Hỗ trợ `v-model:active-index`. |
-| Event | `change` | `{ index, item }` | Khi slide đầu tiên trong vùng nhìn thay đổi. |
-| Event | `reach-start` | không có | Khi điều hướng chuyển tới vị trí đầu. |
-| Event | `reach-end` | không có | Khi điều hướng chuyển tới vị trí đầu-slide hợp lệ cuối cùng. |
-| Event | `load-more` | không có | Khi số slide còn lại đạt `loadMoreThreshold`. |
+| `breakpoint` | `number` | bắt buộc | Chiều rộng tối thiểu của container, tính bằng pixel. |
+| `slidesPerView` | `number` | `slidesPerView` | Số slide hiển thị tại breakpoint này. |
+| `slidesToScroll` | `number` | `slidesToScroll` | Số slide di chuyển bởi `next()` và `previous()`. |
+| `gap` | `number` | `gap` | Khoảng cách giữa các slide, tính bằng pixel. |
 
-#### API qua ref và bàn phím
+```vue
+<VirtualCarousel
+  :items="products"
+  :slides-per-view="1"
+  :responsive="[
+    { breakpoint: 640, slidesPerView: 2, gap: 12 },
+    { breakpoint: 1024, slidesPerView: 3, slidesToScroll: 2, gap: 16 },
+  ]"
+>
+  <template #default="{ item }"><ProductCard :product="item" /></template>
+</VirtualCarousel>
+```
 
-| Method | Mô tả |
+#### Slots
+
+| Slot | Scope | Mô tả |
+| --- | --- | --- |
+| `default` | `{ item, index, active, visible }` | Render từng slide đang mount. |
+| `empty` | không có | Render khi `items` rỗng. |
+
+#### Events
+
+| Event | Payload | Thời điểm emit | Cách dùng |
+| --- | --- | --- | --- |
+| `update:activeIndex` | `number` | Hỗ trợ `v-model:active-index`. | `v-model:active-index="activeIndex"` |
+| `change` | `{ index, item }` | Khi slide đầu tiên trong vùng nhìn thay đổi. | `@change="onChange"` |
+| `reach-start` | không có | Khi điều hướng chuyển tới vị trí đầu. | `@reach-start="onReachStart"` |
+| `reach-end` | không có | Khi điều hướng chuyển tới vị trí đầu-slide hợp lệ cuối cùng. | `@reach-end="onReachEnd"` |
+| `load-more` | không có | Khi số slide còn lại đạt `loadMoreThreshold`. | `@load-more="loadMore"` |
+
+#### API qua ref
+
+| Method / trạng thái | Mô tả | Ví dụ trong template |
+| --- | --- | --- |
+| `next(behavior?)` | Tiến thêm `slidesToScroll` slide; mặc định cuộn mượt. | `carousel?.next()` |
+| `previous(behavior?)` | Lùi lại `slidesToScroll` slide. | `carousel?.previous()` |
+| `scrollToIndex(index, options?)` | Đưa index thành slide đầu tiên trong vùng nhìn. | `carousel?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `startAutoplay()` | Bắt đầu hoặc khởi động lại timer khi `autoplay` là true và có item. | `carousel?.startAutoplay()` |
+| `stopAutoplay()` | Xóa timer hiện tại; đặt `autoplay=false` nếu muốn giữ chế độ tự động ở trạng thái tắt. | `carousel?.stopAutoplay()` |
+
+#### Điều khiển bàn phím
+
+Các phím sau hoạt động khi viewport có focus:
+
+| Phím | Thao tác |
 | --- | --- |
-| `next(behavior?)` | Tiến thêm `slidesToScroll` slide; mặc định cuộn mượt. |
-| `previous(behavior?)` | Lùi lại `slidesToScroll` slide. |
-| `scrollToIndex(index, options?)` | Đưa index thành slide đầu tiên trong vùng nhìn. |
-| `startAutoplay()` | Bắt đầu hoặc khởi động lại quá trình tự động chuyển slide. |
-| `stopAutoplay()` | Dừng quá trình tự động chuyển slide. |
+| `ArrowRight`, `PageDown` | Tiến thêm `slidesToScroll` slide, tương đương `next()`. |
+| `ArrowLeft`, `PageUp` | Lùi lại `slidesToScroll` slide, tương đương `previous()`. |
+| `Home` | Chuyển tới vị trí đầu. |
+| `End` | Chuyển tới vị trí đầu-slide hợp lệ cuối cùng. |
 
-Viewport hỗ trợ Arrow Left/Right, Page Up/Down, Home và End. Smooth scroll ở
-khoảng cách xa tự chuyển thành tức thời để không lộ khoảng trống virtualized.
+Smooth scroll ở khoảng cách xa tự chuyển thành tức thời để không lộ khoảng
+trống virtualized.
 
 #### Ví dụ autoplay
 
@@ -730,18 +887,134 @@ const products = ref(loadProducts())
 </template>
 ```
 
-Autoplay cũng tự bắt đầu khi collection `items` ban đầu rỗng nhận được dữ liệu.
-`stopAutoplay()` tạm dừng timer và `startAutoplay()` tiếp tục chạy khi prop
-`autoplay` vẫn được bật. Các thay đổi của `autoplayDelay`, `autoplayLoop` và
-`pauseOnHover` có hiệu lực ngay trong lúc component đang chạy.
+| Thao tác / điều kiện | Kết quả |
+| --- | --- |
+| `autoplay=true` | Tự chạy, kể cả khi collection `items` ban đầu rỗng nhận được dữ liệu. |
+| `stopAutoplay()` | Xóa timer hiện tại. Điều hướng hoặc sự kiện con trỏ sau đó có thể khởi động lại nếu `autoplay` vẫn là true. |
+| `startAutoplay()` | Bắt đầu hoặc khởi động lại timer khi `autoplay` là true và có item. |
+| `autoplay=false` | Tắt tự động chuyển slide cho tới khi prop được bật lại. |
+| `autoplayLoop` | Khi tới cuối, true quay về đầu; false dừng timer. |
+| `pauseOnHover` | Khi là true, rê chuột vào sẽ tạm dừng; rời chuột sẽ chạy tiếp nếu autoplay đang bật. |
+| Đổi cấu hình autoplay | `autoplayDelay`, `autoplayLoop` và `pauseOnHover` có hiệu lực ngay khi component đang chạy. |
+
+### SkeletonLoader
+
+`SkeletonLoader` hiển thị khối giữ chỗ với hiệu ứng shimmer. Có thể dùng độc lập
+hoặc trong slot `loading` của danh sách. Component luôn hiển thị khi được mount;
+dùng `v-if` để điều khiển khi dùng độc lập, hoặc để prop `loading` của danh sách
+điều khiển slot.
+
+#### Ví dụ
+
+Import stylesheet của thư viện một lần như bên dưới hoặc tại entry point của
+ứng dụng. Đặt `loading` thành false khi request dữ liệu hoàn tất.
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { SkeletonLoader } from 'vue-virtual-flow'
+import 'vue-virtual-flow/style.css'
+
+const loading = ref(true)
+</script>
+
+<template>
+  <SkeletonLoader
+    v-if="loading"
+    width="100%"
+    :height="120"
+    aria-label="Đang tải nội dung…"
+  />
+  <p v-else>Nội dung đã sẵn sàng.</p>
+</template>
+```
+
+#### Props
+
+| Prop | Kiểu | Mặc định | Mô tả |
+| --- | --- | --- | --- |
+| `width` | `number \| string` | `'100%'` | Chiều rộng: số tính bằng pixel, chuỗi nhận độ dài CSS như `'60%'` hoặc `'12rem'`. |
+| `height` | `number \| string` | `16` | Chiều cao: số tính bằng pixel, chuỗi nhận độ dài CSS. |
+| `variant` | `'rectangle' \| 'rounded' \| 'circle'` | `'rounded'` | Hình dạng khối giữ chỗ. Đặt chiều rộng bằng chiều cao để tạo hình tròn. |
+| `animated` | `boolean` | `true` | Bật hiệu ứng shimmer. |
+| `ariaLabel` | `string` | `'Loading…'` | Nhãn cho trình đọc màn hình của khối có `role="status"`. |
+
+```vue
+<SkeletonLoader variant="circle" :width="48" :height="48" />
+<SkeletonLoader variant="rectangle" :height="180" />
+<SkeletonLoader width="60%" :height="20" :animated="false" />
+```
+
+Hiệu ứng tự dừng khi người dùng bật tùy chọn giảm chuyển động. Khi ghép nhiều
+skeleton trang trí cùng một thông báo loading chung, truyền `aria-hidden="true"`
+cho từng skeleton để tránh lặp nhãn với trình đọc màn hình.
+
+#### Slots, events và API qua ref
+
+| API | Hỗ trợ |
+| --- | --- |
+| Slots | Không có. Component render một khối giữ chỗ. |
+| Events | Không có event tùy chỉnh. |
+| Method qua ref | Không có. Điều khiển component bằng props và `v-if`. |
+
+#### Thao tác
+
+| Thao tác | Cách dùng |
+| --- | --- |
+| Hiện hoặc ẩn | `<SkeletonLoader v-if="loading" />` |
+| Dùng hình tròn | `<SkeletonLoader variant="circle" :width="48" :height="48" />` |
+| Tắt shimmer | `<SkeletonLoader :animated="false" />` |
+| Đặt nhãn cho trình đọc màn hình | `aria-label="Đang tải…"` |
+| Ẩn skeleton trang trí khỏi trình đọc màn hình | `aria-hidden="true"` |
+
+#### Dùng trong slot loading
+
+Import `SkeletonLoader` cùng với `VirtualList`. Với state `items` và `loading`
+hiện có, thay thông báo loading bằng skeleton:
+
+```vue
+<VirtualList :items="items" :loading="loading" :loading-item-size="64">
+  <template #default="{ item }"><FeedCard :item="item" /></template>
+  <template #loading>
+    <SkeletonLoader :height="40" aria-label="Đang tải trang tiếp theo…" />
+  </template>
+</VirtualList>
+```
+
+| Cấu hình | Cách dùng |
+| --- | --- |
+| Component hỗ trợ slot `loading` | `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`, `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll`. |
+| `loading` trên danh sách | Đặt thành true để hiển thị slot; false để ẩn. |
+| `height` trên skeleton | Đặt chiều cao khối giữ chỗ, ví dụ `40` pixel. |
+| `loadingItemSize` trên danh sách | Dành đủ chỗ cho skeleton và padding dọc của hàng. Ví dụ: `40px + 1.5rem = 64px` với cỡ chữ gốc 16px. |
+
+#### Tùy chỉnh giao diện
+
+Đặt các biến CSS sau trên skeleton hoặc phần tử cha:
+
+| Biến CSS | Mặc định | Mô tả |
+| --- | --- | --- |
+| `--skeleton-background` | `#e2e8f0` | Màu nền. |
+| `--skeleton-highlight` | `rgb(255 255 255 / 60%)` | Màu vệt sáng của hiệu ứng shimmer. |
+| `--skeleton-radius` | `8px` | Bán kính bo góc cho variant `rounded`. |
+
+```vue
+<SkeletonLoader
+  :height="80"
+  style="--skeleton-background: #334155; --skeleton-highlight: #475569; --skeleton-radius: 12px"
+/>
+```
 
 ## Cách dùng chung
 
 ### Chiều cao viewport
 
-Các component dùng container nhận một số hoặc chuỗi chiều cao CSS. Giá trị số
-được đổi thành pixel. `height="fill"` là cách viết ngắn của
-`height="100%"`:
+| Giá trị / component | Cách hoạt động |
+| --- | --- |
+| `:height="400"` | Giá trị số được đổi thành pixel. |
+| `height="60vh"` | Chuỗi chiều cao CSS được giữ nguyên. |
+| `height="fill"` / `height="100%"` | Dùng chiều cao phần tử cha. Thẻ cha cần có chiều cao xác định; bản development cảnh báo nếu viewport tính thành `0px`. |
+| `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll` | Dùng cửa sổ trình duyệt và không nhận prop `height`. |
 
 ```vue
 <div class="list-container">
@@ -758,15 +1031,14 @@ Các component dùng container nhận một số hoặc chuỗi chiều cao CSS.
 }
 ```
 
-Chiều cao phần trăm chỉ hoạt động khi thẻ cha có chiều cao xác định. Bản
-development cảnh báo nếu viewport được tính thành `0px`.
-`WindowDynamicVirtualScroll` và `WindowGirdVirtualScroll` dùng cửa sổ trình
-duyệt nên không có prop `height`.
-
 ### Key ổn định cho item
 
-Với object, component tự thử `item.id` rồi tới `item.key`. Item nguyên thủy dùng
-index làm fallback. Hãy truyền `itemKey` nếu định danh có tên khác:
+| Cấu hình / dữ liệu | Cách chọn key |
+| --- | --- |
+| `:item-key="(item, index) => …"` | Dùng giá trị hàm trả về. |
+| `item-key="uuid"` | Dùng `item.uuid` hợp lệ; nếu không có, thử `id`, `key`, rồi index. |
+| Object không truyền `itemKey` | Thử `item.id`, sau đó `item.key`, rồi index. |
+| Giá trị nguyên thủy không có hàm key | Dùng index làm fallback. |
 
 ```vue
 <VirtualList :items="users" item-key="uuid" />
@@ -782,8 +1054,11 @@ lại dữ liệu. Key cũng gắn kết quả đo chiều cao với đúng item
 
 ### Tải thêm dữ liệu
 
-Các component dạng list dùng ngưỡng khoảng cách pixel. `ShortMediaFeed` và
-`VirtualCarousel` dùng ngưỡng số item còn lại.
+| Component | `loadMoreThreshold` | Event |
+| --- | --- | --- |
+| `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`, `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll` | Khoảng cách tới cuối danh sách, tính bằng pixel. | `load-more` |
+| `ShortMediaFeed` | Số item phía sau item active. | `load-more` |
+| `VirtualCarousel` | Số slide phía sau nhóm đang hiển thị. | `load-more` |
 
 ```vue
 <script setup lang="ts">
@@ -815,14 +1090,20 @@ async function loadMore() {
 </template>
 ```
 
-Event chỉ emit tối đa một lần với số lượng item hiện tại. Nối thêm item sẽ cho
-phép request tiếp theo. Giữ `loading` là true trong toàn bộ request và đặt
-`hasMore` thành false sau trang cuối.
+| Bước / điều kiện | Thao tác / kết quả |
+| --- | --- |
+| Nhận `load-more` | Chỉ bắt đầu request tiếp theo khi `loading` là false và `hasMore` là true. |
+| Request đang chạy | Giữ `loading=true` trong toàn bộ request. |
+| Nhận trang tiếp theo | Nối thêm item. Event thông thường chỉ emit một lần với số lượng item hiện tại; tăng số lượng cho phép request tiếp theo. |
+| Request hoàn tất | Đặt `loading=false`; dùng `finally` khi request có thể thất bại. |
+| Trang cuối | Đặt `hasMore=false` để ngừng request tiếp theo. |
 
 ### Kéo để làm mới
 
-Pull-to-refresh có trên `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`,
-`WindowDynamicVirtualScroll` và `WindowGirdVirtualScroll`:
+| Component | Vị trí bắt đầu thao tác |
+| --- | --- |
+| `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll` | Đầu container của component. |
+| `WindowDynamicVirtualScroll`, `WindowGirdVirtualScroll` | `window.scrollY = 0` |
 
 ```vue
 <VirtualList
@@ -839,10 +1120,38 @@ Pull-to-refresh có trên `VirtualList`, `DynamicVirtualScroll`, `VirtualScroll`
 </VirtualList>
 ```
 
-Thao tác một ngón chỉ bắt đầu khi đang ở đầu danh sách. Đặt `refreshing` thành
-true trong lúc chạy refresh bất đồng bộ, sau đó trả về false để đóng indicator.
+| Bước / trạng thái | Thao tác / kết quả |
+| --- | --- |
+| Bật thao tác | `pull-to-refresh` |
+| Kéo xuống bằng một ngón khi đang ở đầu | Cập nhật scope của slot `refresh`: `pullDistance`, `progress` và `refreshing`. |
+| Thả sau khi đạt `pullRefreshThreshold` | Emit `refresh` không có payload. |
+| Xử lý `refresh` | Đặt `refreshing=true` trong lúc tải lại dữ liệu để giữ indicator mở. |
+| Hoàn tất làm mới | Đặt `refreshing=false` để đóng indicator. |
 
 ## Các type được export
+
+| Type | Mục đích |
+| --- | --- |
+| `ChatVirtualScrollExpose` | API ref và trạng thái `isAtBottom` của chat. |
+| `ChatVirtualScrollProps<T>` | Props của component chat. |
+| `DynamicVirtualScrollProps<T>` | Props của danh sách chiều cao động. |
+| `ItemKey<T>` | Tên thuộc tính hoặc hàm xác định key của item. |
+| `ResponsiveBreakpoint` | Breakpoint container và cấu hình ghi đè của carousel. |
+| `ScrollAlignment` | `'start'`, `'center'` hoặc `'end'` khi cuộn tới index trong danh sách. |
+| `ShortMediaFeedChangeEvent<T>` | Payload event `change` của feed: `{ index, item }`. |
+| `ShortMediaFeedExpose` | API ref của feed. |
+| `ShortMediaFeedProps<T>` | Props của feed. |
+| `SkeletonLoaderProps` | Kích thước, hình dạng, hiệu ứng và nhãn hỗ trợ tiếp cận của skeleton. |
+| `VirtualCarouselChangeEvent<T>` | Payload event `change` của carousel: `{ index, item }`. |
+| `VirtualCarouselExpose` | API ref điều hướng và autoplay của carousel. |
+| `VirtualCarouselProps<T>` | Props của carousel, gồm cấu hình responsive. |
+| `VirtualListExpose` | Alias của `VirtualScrollExpose`. |
+| `VirtualListProps<T>` | Alias của `DynamicVirtualScrollProps<T>`. |
+| `VirtualScrollEvent` | Payload scroll: `{ scrollTop, startIndex, endIndex }`; `endIndex` không bao gồm item tại index đó. |
+| `VirtualScrollExpose` | API ref chung cho danh sách cố định, động và danh sách/grid cuộn theo cửa sổ. |
+| `VirtualScrollProps<T>` | Props của danh sách chiều cao cố định. |
+| `WindowDynamicVirtualScrollProps<T>` | Props của danh sách chiều cao động cuộn theo cửa sổ. |
+| `WindowGirdVirtualScrollProps<T>` | Props của grid hàng cố định cuộn theo cửa sổ. |
 
 ```ts
 import type {
@@ -850,10 +1159,12 @@ import type {
   ChatVirtualScrollProps,
   DynamicVirtualScrollProps,
   ItemKey,
+  ResponsiveBreakpoint,
   ScrollAlignment,
   ShortMediaFeedChangeEvent,
   ShortMediaFeedExpose,
   ShortMediaFeedProps,
+  SkeletonLoaderProps,
   VirtualCarouselChangeEvent,
   VirtualCarouselExpose,
   VirtualCarouselProps,
@@ -868,6 +1179,22 @@ import type {
 ```
 
 ## Phát triển và phát hành
+
+| Lệnh / lifecycle | Thao tác |
+| --- | --- |
+| `bun install` | Cài đặt dependency. |
+| `bunx playwright install chromium firefox webkit` | Cài trình duyệt cho smoke test. |
+| `bun run dev` | Chạy playground. |
+| `bun run typecheck` | Kiểm tra type TypeScript và Vue. |
+| `bun run test` | Chạy unit test. |
+| `bun run test:watch` | Chạy unit test ở chế độ theo dõi thay đổi. |
+| `bun run build` | Kiểm tra type và build package kèm khai báo type. |
+| `bun run typecheck:package` | Kiểm tra type phía dùng package ESM và CommonJS sau khi build. |
+| `bun run lint:package` | Kiểm tra exports và cách đóng gói type sau khi build. |
+| `bun run test:browser` | Chạy test trình duyệt bằng Playwright. |
+| `bun run check` | Chạy toàn bộ: unit test, build, type phía dùng package, lint package và test trình duyệt. |
+| `npm pack --dry-run` | Kiểm tra các file sẽ được publish. |
+| `prepublishOnly` | Tự chạy `bun run check` trước khi publish. |
 
 ```bash
 bun install

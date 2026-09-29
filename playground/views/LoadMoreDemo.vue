@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DynamicVirtualScroll from "../../src/components/DynamicVirtualScroll.vue";
+import SkeletonLoader from "../../src/components/SkeletonLoader.vue";
 import { feedItems } from "../data";
 
 const pageSize = 20;
@@ -59,6 +60,7 @@ async function refreshFeed() {
       item-key="id"
       :has-more="hasMore"
       :loading="loading"
+      :loading-item-size="240"
       pull-to-refresh
       :refreshing="refreshing"
       :pull-refresh-threshold="72"
@@ -84,9 +86,15 @@ async function refreshFeed() {
       </template>
 
       <template #loading>
-        <div class="inline-loader">
-          <span aria-hidden="true" />
-          Loading the next {{ pageSize }} items…
+        <div
+          class="feed-skeleton"
+          role="group"
+          :aria-label="`Loading the next ${pageSize} items…`"
+        >
+          <SkeletonLoader width="60%" :height="24" aria-hidden="true" />
+          <SkeletonLoader :height="128" aria-hidden="true" />
+          <SkeletonLoader aria-hidden="true" />
+          <SkeletonLoader width="80%" aria-hidden="true" />
         </div>
       </template>
 
@@ -105,3 +113,12 @@ async function refreshFeed() {
     </DynamicVirtualScroll>
   </section>
 </template>
+
+<style scoped>
+.feed-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+</style>

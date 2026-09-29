@@ -1,5 +1,15 @@
 export type ItemKey<T> = keyof T | ((item: T, index: number) => PropertyKey)
 
+export interface SkeletonLoaderProps {
+  /** Numeric dimensions are pixels; strings accept CSS lengths. */
+  width?: number | string
+  height?: number | string
+  /** Use equal width and height for a circle. */
+  variant?: 'rectangle' | 'rounded' | 'circle'
+  animated?: boolean
+  ariaLabel?: string
+}
+
 export interface VirtualScrollProps<T> {
   items: readonly T[]
   itemSize: number
