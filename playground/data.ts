@@ -4,6 +4,8 @@ export interface FeedItem {
   id: string;
   title: string;
   image: string;
+  imageWidth: number;
+  imageHeight: number;
   description: string;
 }
 
@@ -21,6 +23,8 @@ export const feedItems: FeedItem[] = Array.from(
         width: 720,
         height: imageHeights[index % imageHeights.length],
       }),
+      imageWidth: 720,
+      imageHeight: imageHeights[index % imageHeights.length],
       description: faker.lorem.paragraph({ min: 1, max: 20 }),
     };
   },

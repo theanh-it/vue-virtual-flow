@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.7] - 2026-09-29
+
+### Fixed
+- **ChatVirtualScroll**: Preserve visible message DOM and scroll position when older messages are prepended
+- **ChatVirtualScroll**: Defer native scroll corrections during touch gestures and momentum while visually compensating for measured height changes
+- **ChatVirtualScroll**: Prevent gaps at the top and double scroll adjustments near the bottom when message heights shrink
+
+### Improved
+- Reserve image dimensions in the chat playground to reduce layout shifts while media loads
+- Added regression coverage for touch scrolling, prepend anchoring, height changes, imperative scrolling, and cleanup across unit and browser tests
+
 ## [0.0.6] - 2026-09-29
 
 ### Added

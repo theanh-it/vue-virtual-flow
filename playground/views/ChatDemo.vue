@@ -11,6 +11,8 @@ interface DemoMessage {
   own: boolean;
   type: "text" | "image" | "video";
   image?: string;
+  imageWidth?: number;
+  imageHeight?: number;
   video?: string;
   poster?: string;
 }
@@ -32,6 +34,8 @@ const allMessages: DemoMessage[] = feedItems
       own: index % 3 === 0,
       type,
       image: type === "image" ? item.image : undefined,
+      imageWidth: item.imageWidth,
+      imageHeight: item.imageHeight,
       video: type === "video" ? demoVideo : undefined,
       poster: type === "video" ? item.image : undefined,
     };
@@ -115,7 +119,8 @@ function appendMessage() {
               <img
                 :src="item.image"
                 :alt="`Image shared by ${item.author}`"
-                width="720"
+                :width="item.imageWidth"
+                :height="item.imageHeight"
                 loading="lazy"
               />
               <figcaption>{{ item.text }}</figcaption>

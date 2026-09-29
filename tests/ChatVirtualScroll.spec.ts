@@ -30,6 +30,47 @@ function createMessages(start: number, count: number): Message[] {
 const messages = createMessages(0, 100)
 const TestChatVirtualScroll = ChatVirtualScroll as Component
 
+function mountMeasuredChat(props: Record<string, unknown> = {}) {
+  const wrapper = mount(TestChatVirtualScroll, {
+    attachTo: document.body,
+    props: {
+      items: messages,
+      estimatedItemSize: 40,
+      height: 100,
+      itemKey: 'id',
+      initialScroll: 'top',
+      ...props,
+    },
+  })
+  const viewport = wrapper.get('.vue-chat-virtual-scroll')
+  Object.defineProperty(viewport.element, 'clientHeight', { configurable: true, value: 100 })
+  const row = (position: number) => wrapper.get(`[aria-posinset="${position}"]`)
+  const resize = (position: number, height: number) => {
+    const observer = MockResizeObserver.instances[1]
+    observer.callback([{
+      target: row(position).element,
+      contentRect: { height },
+    }] as ResizeObserverEntry[], observer as unknown as ResizeObserver)
+  }
+  const screenTop = (position: number) => {
+    const transform = (row(position).element as HTMLElement).style.transform
+    return Number(transform.match(/translateY\(([-\d.]+)px\)/)?.[1])
+      - viewport.element.scrollTop
+  }
+  return { wrapper, viewport, row, resize, screenTop }
+}
+
+function trackScrollWrites(element: Element) {
+  let top = element.scrollTop
+  const writes = vi.fn((value: number) => { top = value })
+  Object.defineProperty(element, 'scrollTop', {
+    configurable: true,
+    get: () => top,
+    set: writes,
+  })
+  return writes
+}
+
 describe('ChatVirtualScroll', () => {
   beforeEach(() => {
     MockResizeObserver.instances = []
@@ -153,6 +194,8 @@ describe('ChatVirtualScroll', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
     document.body.innerHTML = ''
   })
@@ -291,5 +334,173 @@ describe('ChatVirtualScroll', () => {
     await viewport.trigger('scroll')
 
     expect(wrapper.emitted('loadOlder')).toHaveLength(1)
+  })
+
+  it('keeps the visible message DOM mounted when a whole page is prepended', async () => {
+    const { wrapper, viewport, row } = mountMeasuredChat({ size: 6 })
+    await nextTick()
+    viewport.element.scrollTop = 100
+    await viewport.trigger('scroll')
+    const anchor = row(3).element
+
+    await wrapper.setProps({ items: [...createMessages(-20, 20), ...messages] })
+    await nextTick()
+
+    expect(row(23).element).toBe(anchor)
+    expect(viewport.element.scrollTop).toBe(900)
+    wrapper.unmount()
+  })
+
+  it.each([80, 20])('preserves the anchor during touch and momentum when a row resizes to %spx', async (height) => {
+    vi.useFakeTimers()
+    const { wrapper, viewport, row, resize, screenTop } = mountMeasuredChat()
+    await nextTick()
+    viewport.element.scrollTop = 240
+    await viewport.trigger('scroll')
+    const anchor = row(7).element
+    const writes = trackScrollWrites(viewport.element)
+    await viewport.trigger('touchstart')
+
+    resize(3, height)
+    await nextTick()
+    resize(4, height)
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(row(7).element).toBe(anchor)
+    expect(screenTop(7)).toBe(0)
+    expect(wrapper.get('.vue-chat-virtual-scroll__spacer').attributes('style')).toContain('height: 4000px')
+
+    await viewport.trigger('touchend', { touches: [] })
+    await vi.advanceTimersByTimeAsync(100)
+    // Native momentum continues after the finger lifts.
+    viewport.element.scrollTop = 220
+    writes.mockClear()
+    await viewport.trigger('scroll')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(writes).not.toHaveBeenCalled()
+    expect(screenTop(7)).toBe(20)
+    expect(wrapper.emitted('scroll')?.at(-1)?.[0]).toMatchObject({
+      scrollTop: 220 + 2 * (height - 40),
+    })
+
+    await vi.advanceTimersByTimeAsync(60)
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(viewport.element.scrollTop).toBe(220 + 2 * (height - 40))
+    expect(screenTop(7)).toBe(20)
+    expect(row(7).element).toBe(anchor)
+    wrapper.unmount()
+  })
+
+  it('compensates prepend and measurements during a touch without requesting another page', async () => {
+    const { wrapper, viewport, row, resize, screenTop } = mountMeasuredChat({ hasOlder: true, size: 6 })
+    await nextTick()
+    const anchor = row(1).element
+    const writes = trackScrollWrites(viewport.element)
+    await viewport.trigger('touchstart')
+    await wrapper.setProps({ items: [...createMessages(-20, 20), ...messages] })
+    resize(20, 100)
+    await nextTick()
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(row(21).element).toBe(anchor)
+    expect(screenTop(21)).toBe(0)
+    expect(wrapper.emitted('loadOlder')).toHaveLength(1)
+    expect(wrapper.vm.isAtBottom).toBe(false)
+
+    // scrollend cannot commit while a finger is still on the viewport.
+    await viewport.trigger('scrollend')
+    expect(writes).not.toHaveBeenCalled()
+    await viewport.trigger('touchend', { touches: [] })
+    await viewport.trigger('scrollend')
+    await nextTick()
+
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(viewport.element.scrollTop).toBe(860)
+    expect(screenTop(21)).toBe(0)
+    expect(row(21).element).toBe(anchor)
+    wrapper.unmount()
+  })
+
+  it.each(['scrollTo', 'scrollToIndex', 'scrollToTop', 'scrollToBottom'])('lets %s override a pending touch adjustment', async (method) => {
+    vi.useFakeTimers()
+    const { wrapper, viewport, resize } = mountMeasuredChat()
+    await nextTick()
+    viewport.element.scrollTop = 240
+    await viewport.trigger('scroll')
+    viewport.element.scrollTo = vi.fn((options: ScrollToOptions) => {
+      viewport.element.scrollTop = options.top ?? 0
+    }) as typeof viewport.element.scrollTo
+    await viewport.trigger('touchstart')
+    resize(3, 100)
+    await nextTick()
+
+    const args: Record<string, number[]> = { scrollTo: [600], scrollToIndex: [15], scrollToTop: [], scrollToBottom: [] }
+    const expected: Record<string, number> = { scrollTo: 600, scrollToIndex: 660, scrollToTop: 0, scrollToBottom: 3960 }
+    wrapper.vm[method](...args[method])
+    await nextTick()
+    await viewport.trigger('touchend', { touches: [] })
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(viewport.element.scrollTop).toBe(expected[method])
+    wrapper.unmount()
+  })
+
+  it('does not pin back to the bottom while the user is touching the chat', async () => {
+    const { wrapper, viewport, resize } = mountMeasuredChat({ initialScroll: 'bottom' })
+    await nextTick()
+    await viewport.trigger('touchstart')
+    viewport.element.scrollTop = 3860
+    await viewport.trigger('scroll')
+    const writes = trackScrollWrites(viewport.element)
+    resize(100, 100)
+    await wrapper.setProps({ items: [...messages, ...createMessages(100, 1)] })
+    await nextTick()
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(viewport.element.scrollTop).toBe(3860)
+    wrapper.unmount()
+  })
+
+  it('cleans up a deferred touch adjustment when unmounted', async () => {
+    vi.useFakeTimers()
+    const { wrapper, viewport, resize } = mountMeasuredChat()
+    await nextTick()
+    viewport.element.scrollTop = 240
+    await viewport.trigger('scroll')
+    await viewport.trigger('touchstart')
+    resize(3, 100)
+    await nextTick()
+    await viewport.trigger('touchcancel', { touches: [] })
+    const writes = trackScrollWrites(viewport.element)
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('leaves no empty gap when scrolling to the top after rows shrink during a touch', async () => {
+    const { wrapper, viewport, resize, screenTop } = mountMeasuredChat()
+    await nextTick()
+    viewport.element.scrollTop = 240
+    await viewport.trigger('scroll')
+    await viewport.trigger('touchstart')
+    resize(3, 10)
+    resize(4, 10)
+    await nextTick()
+    viewport.element.scrollTop = 20
+    const writes = trackScrollWrites(viewport.element)
+    await viewport.trigger('scroll')
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(screenTop(1)).toBe(0)
+    await viewport.trigger('touchend', { touches: [] })
+    await viewport.trigger('scrollend')
+    await nextTick()
+    expect(viewport.element.scrollTop).toBe(0)
+    expect(screenTop(1)).toBe(0)
+    wrapper.unmount()
   })
 })

@@ -321,6 +321,10 @@ p {
   aspect-ratio: 16 / 9;
 }
 
+.chat-message img {
+  height: auto;
+}
+
 .chat-message figcaption {
   margin-top: 0.65rem;
   line-height: 1.45;

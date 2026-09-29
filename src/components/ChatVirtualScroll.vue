@@ -68,6 +68,7 @@ defineSlots<{
 
 const viewport = ref<HTMLElement>()
 const scrollTop = ref(0)
+const scrollCompensation = ref(0)
 const measuredHeight = ref(0)
 const measurementVersion = ref(0)
 const isAtBottom = ref(true)
@@ -77,6 +78,12 @@ let viewportResizeObserver: ResizeObserver | undefined
 let itemResizeObserver: ResizeObserver | undefined
 let lastLoadOlderItemCount = -1
 let mounted = false
+let touching = false
+let touchScrolling = false
+let scrollIdleTimer: ReturnType<typeof setTimeout> | undefined
+let pendingScrollAdjustment = 0
+let adjustmentScheduled = false
+let scrollRequestVersion = 0
 const warnIfZeroHeight = createZeroHeightWarning('ChatVirtualScroll')
 const { getItemKey } = useItemKey<T>({
   componentName: 'ChatVirtualScroll',
@@ -184,7 +191,7 @@ const visibleItems = computed(() =>
         item,
         index,
         key: getItemKey(item, index),
-        top: metrics.value.offsets[index],
+        top: metrics.value.offsets[index] - scrollCompensation.value,
       }
     }),
 )
@@ -193,13 +200,85 @@ const containerStyle = computed(() => ({
   height: toCssHeight(props.height),
 }))
 
+function getScrollTop() {
+  return (viewport.value?.scrollTop ?? 0) + pendingScrollAdjustment
+}
+
+function scheduleScrollAdjustment() {
+  if (adjustmentScheduled) return
+  adjustmentScheduled = true
+
+  nextTick(() => {
+    adjustmentScheduled = false
+    const element = viewport.value
+    if (!element || touchScrolling || pendingScrollAdjustment === 0) return
+
+    // The new spacer and render range must exist before changing native scrollTop.
+    pendingScrollAdjustment = 0
+    // Use the logical target: a shorter spacer may already have clamped native
+    // scrollTop, so adding the delta again would move the anchor twice.
+    element.scrollTop = scrollTop.value
+    scrollTop.value = element.scrollTop
+    updateBottomState()
+    maybeEmitLoadOlder()
+  })
+}
+
+function adjustScrollPosition(adjustment: number) {
+  if (!viewport.value || adjustment === 0) return
+
+  pendingScrollAdjustment += adjustment
+  // Update the range before Vue patches the rows, preserving their keyed DOM.
+  scrollTop.value = getScrollTop()
+  if (touchScrolling) {
+    // Keep the anchor in place without interrupting native touch momentum.
+    scrollCompensation.value = pendingScrollAdjustment
+  } else {
+    scheduleScrollAdjustment()
+  }
+}
+
+function clearScrollIdleTimer() {
+  clearTimeout(scrollIdleTimer)
+  scrollIdleTimer = undefined
+}
+
+function handleScrollEnd() {
+  if (touching) return
+  clearScrollIdleTimer()
+  touchScrolling = false
+  scrollTop.value = getScrollTop()
+  scrollCompensation.value = 0
+  scheduleScrollAdjustment()
+}
+
+function scheduleScrollEnd() {
+  clearScrollIdleTimer()
+  // Also covers browsers without scrollend and taps that produce no scroll event.
+  if (touchScrolling && !touching) {
+    scrollIdleTimer = setTimeout(handleScrollEnd, 150)
+  }
+}
+
+function handleTouchStart() {
+  clearScrollIdleTimer()
+  touching = true
+  touchScrolling = true
+  scrollCompensation.value = pendingScrollAdjustment
+}
+
+function handleTouchEnd(event: TouchEvent) {
+  touching = event.touches.length > 0
+  scheduleScrollEnd()
+}
+
 function updateBottomState() {
   const element = viewport.value
   if (!element) return
 
   const distance = Math.max(
     0,
-    metrics.value.total - element.scrollTop - element.clientHeight,
+    metrics.value.total - getScrollTop() - element.clientHeight,
   )
   const nextIsAtBottom = distance <= Math.max(0, props.bottomThreshold)
   if (nextIsAtBottom !== isAtBottom.value) {
@@ -217,8 +296,15 @@ function updateMeasuredHeight() {
   })
 }
 
-function handleScroll(event: Event) {
-  scrollTop.value = (event.currentTarget as HTMLElement).scrollTop
+function handleScroll() {
+  if (pendingScrollAdjustment < 0 && getScrollTop() < 0) {
+    // Shrinking rows can move the logical start below the native scroll origin.
+    // Consume that offset at the boundary instead of exposing an empty gap.
+    pendingScrollAdjustment = -Math.max(0, viewport.value?.scrollTop ?? 0)
+    if (touchScrolling) scrollCompensation.value = pendingScrollAdjustment
+  }
+  scrollTop.value = getScrollTop()
+  scheduleScrollEnd()
   updateBottomState()
   emit('scroll', {
     scrollTop: scrollTop.value,
@@ -240,7 +326,7 @@ function maybeEmitLoadOlder() {
     return
   }
 
-  if (element.scrollTop <= Math.max(0, props.loadOlderThreshold)) {
+  if (getScrollTop() <= Math.max(0, props.loadOlderThreshold)) {
     lastLoadOlderItemCount = props.items.length
     emit('loadOlder')
   }
@@ -257,7 +343,8 @@ function getEntryHeight(entry: ResizeObserverEntry) {
 
 function handleItemResize(entries: ResizeObserverEntry[]) {
   const previousMetrics = metrics.value
-  const keepAtBottom = isAtBottom.value && props.stickToBottom
+  const previousScrollTop = getScrollTop()
+  const keepAtBottom = !touchScrolling && isAtBottom.value && props.stickToBottom
   let adjustmentAboveViewport = 0
   let changed = false
 
@@ -273,7 +360,7 @@ function handleItemResize(entries: ResizeObserverEntry[]) {
     const index = indexByKey.value.get(key)
     if (
       index !== undefined &&
-      previousMetrics.offsets[index + 1] <= scrollTop.value
+      previousMetrics.offsets[index + 1] <= previousScrollTop
     ) {
       adjustmentAboveViewport += height - previous
     }
@@ -285,18 +372,12 @@ function handleItemResize(entries: ResizeObserverEntry[]) {
   if (!changed) return
   measurementVersion.value += 1
 
-  nextTick(() => {
-    const element = viewport.value
-    if (!element) return
-
-    if (keepAtBottom) {
-      scrollToBottom('auto')
-    } else if (adjustmentAboveViewport !== 0) {
-      element.scrollTop += adjustmentAboveViewport
-      scrollTop.value = element.scrollTop
-      updateBottomState()
-    }
-  })
+  const element = viewport.value
+  if (!element) return
+  adjustScrollPosition(keepAtBottom
+    ? Math.max(0, metrics.value.total - element.clientHeight) - previousScrollTop
+    : adjustmentAboveViewport)
+  nextTick(updateBottomState)
 }
 
 function setItemElement(
@@ -304,6 +385,7 @@ function setItemElement(
   key: PropertyKey,
 ) {
   if (!(value instanceof HTMLElement)) return
+  if (observedElements.get(value) === key) return
 
   observedElements.set(value, key)
   itemResizeObserver?.observe(value)
@@ -318,6 +400,35 @@ function removeDisconnectedElements() {
   }
 }
 
+function applyScrollPosition(top: number, options: ScrollToOptions, direct = false) {
+  const element = viewport.value
+  if (!element) return
+
+  const previousScrollTop = getScrollTop()
+  const wasCompensating = scrollCompensation.value !== 0
+  const version = ++scrollRequestVersion
+  const behavior = options.behavior ?? 'auto'
+  pendingScrollAdjustment = 0
+  scrollCompensation.value = 0
+  touchScrolling = false
+  clearScrollIdleTimer()
+  if (behavior === 'auto') scrollTop.value = top
+
+  const apply = () => {
+    if (viewport.value !== element || version !== scrollRequestVersion) return
+    if (wasCompensating && behavior !== 'auto') element.scrollTop = previousScrollTop
+    if (direct && behavior === 'auto') {
+      element.scrollTop = top
+    } else {
+      element.scrollTo({ ...options, top, behavior })
+    }
+    nextTick(updateBottomState)
+  }
+
+  if (wasCompensating) nextTick(apply)
+  else apply()
+}
+
 function scrollTo(position: number, options: ScrollToOptions = {}) {
   const element = viewport.value
   if (!element) return
@@ -327,11 +438,7 @@ function scrollTo(position: number, options: ScrollToOptions = {}) {
     Math.max(0, Number.isFinite(position) ? position : 0),
     maximum,
   )
-  const behavior = options.behavior ?? 'auto'
-
-  if (behavior === 'auto') scrollTop.value = top
-  element.scrollTo({ ...options, top, behavior })
-  nextTick(updateBottomState)
+  applyScrollPosition(top, options)
 }
 
 function scrollToIndex(
@@ -359,24 +466,11 @@ function scrollToIndex(
     0,
     Math.min(top, metrics.value.total - element.clientHeight),
   )
-  const behavior = scrollOptions.behavior ?? 'auto'
-
-  if (behavior === 'auto') scrollTop.value = targetTop
-  element.scrollTo({
-    ...scrollOptions,
-    top: targetTop,
-    behavior,
-  })
-  nextTick(updateBottomState)
+  applyScrollPosition(targetTop, scrollOptions)
 }
 
 function scrollToTop(behavior: ScrollBehavior = 'auto') {
-  const element = viewport.value
-  if (!element) return
-
-  if (behavior === 'auto') scrollTop.value = 0
-  element.scrollTo({ top: 0, behavior })
-  nextTick(updateBottomState)
+  applyScrollPosition(0, { behavior })
 }
 
 function scrollToBottom(behavior: ScrollBehavior = 'auto') {
@@ -384,13 +478,7 @@ function scrollToBottom(behavior: ScrollBehavior = 'auto') {
   if (!element) return
 
   const top = Math.max(0, metrics.value.total - element.clientHeight)
-  if (behavior === 'auto') {
-    element.scrollTop = top
-    scrollTop.value = top
-  } else {
-    element.scrollTo({ top, behavior })
-  }
-  nextTick(updateBottomState)
+  applyScrollPosition(top, { behavior }, true)
 }
 
 let previousKeys = props.items.map((item, index) => getItemKey(item, index))
@@ -401,8 +489,7 @@ watch(
     const oldKeys = previousKeys
     previousKeys = nextKeys
     const element = viewport.value
-    const previousScrollTop = element?.scrollTop ?? 0
-    const keepAtBottom = isAtBottom.value && props.stickToBottom
+    const keepAtBottom = !touchScrolling && isAtBottom.value && props.stickToBottom
     const previousFirstKey = oldKeys[0]
     const prependedCount =
       previousFirstKey === undefined ? 0 : nextKeys.indexOf(previousFirstKey)
@@ -423,16 +510,20 @@ watch(
     }
     measurementVersion.value += 1
 
-    await nextTick()
-    if (!element) return
-
     if (prependedHeight > 0) {
-      element.scrollTop = previousScrollTop + prependedHeight
-      scrollTop.value = element.scrollTop
-    } else if (nextKeys.length > oldKeys.length && keepAtBottom) {
-      scrollToBottom('auto')
+      adjustScrollPosition(prependedHeight)
+    } else if (element && nextKeys.length > oldKeys.length && keepAtBottom) {
+      adjustScrollPosition(
+        Math.max(0, metrics.value.total - element.clientHeight) - getScrollTop(),
+      )
+    } else if (nextKeys.length === 0 || prependedCount < 0) {
+      pendingScrollAdjustment = 0
+      scrollCompensation.value = 0
     }
 
+    await nextTick()
+    if (!viewport.value) return
+    scrollTop.value = getScrollTop()
     updateBottomState()
     maybeEmitLoadOlder()
   },
@@ -473,6 +564,10 @@ onMounted(() => {
 onUpdated(removeDisconnectedElements)
 
 onBeforeUnmount(() => {
+  mounted = false
+  clearScrollIdleTimer()
+  pendingScrollAdjustment = 0
+  scrollRequestVersion += 1
   if (viewportResizeObserver) {
     viewportResizeObserver.disconnect()
     viewportResizeObserver = undefined
@@ -503,6 +598,10 @@ defineExpose({
     aria-live="polite"
     tabindex="0"
     @scroll.passive="handleScroll"
+    @scrollend.passive="handleScrollEnd"
+    @touchstart.passive="handleTouchStart"
+    @touchend.passive="handleTouchEnd"
+    @touchcancel.passive="handleTouchEnd"
   >
     <div
       v-if="loadingOlder"
@@ -518,7 +617,7 @@ defineExpose({
     <div
       v-if="items.length"
       class="vue-chat-virtual-scroll__spacer"
-      :style="{ height: `${metrics.total}px` }"
+      :style="{ height: `${Math.max(0, metrics.total - scrollCompensation)}px` }"
     >
       <div
         v-for="{ item, index, key, top } in visibleItems"
