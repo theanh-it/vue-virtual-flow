@@ -102,3 +102,29 @@ test('window list jumps directly and chat remains pinned after append', async ({
     .toBeLessThanOrEqual(1)
   expect(errors).toEqual([])
 })
+
+test('chat respects size while scrolling up on a portrait mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/#/chat')
+  const chat = page.getByRole('log', { name: 'Community chat' })
+  const rows = chat.locator('.vue-chat-virtual-scroll__item')
+  await expect(rows.last()).toHaveAttribute('aria-posinset', '20')
+
+  for (const fraction of [0.75, 0.5, 0.25, 0]) {
+    await chat.evaluate((element, value) => {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) * value
+    }, fraction)
+    await expect.poll(() => chat.evaluate((element) => {
+      const mounted = Array.from(element.querySelectorAll('.vue-chat-virtual-scroll__item'))
+      const viewportTop = element.getBoundingClientRect().top + element.clientTop
+      const first = mounted[0]?.getBoundingClientRect()
+      const last = mounted.at(-1)?.getBoundingClientRect()
+      return mounted.length <= 12 && !!first && !!last
+        && first.top <= viewportTop + 1
+        && last.bottom >= viewportTop + element.clientHeight - 1
+    })).toBe(true)
+  }
+
+  await expect(rows.first()).toHaveAttribute('aria-setsize', '40')
+  expect(await rows.count()).toBeLessThanOrEqual(12)
+})

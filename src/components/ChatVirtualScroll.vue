@@ -27,6 +27,8 @@ const props = withDefaults(
     estimatedItemSize?: number
     height?: number | string
     overscan?: number
+    /** Render budget including overscan; always keeps the viewport filled. */
+    size?: number
     itemKey?: ItemKey<T> extends infer Key ? Key : never
     ariaLabel?: string
     stickToBottom?: boolean
@@ -40,6 +42,7 @@ const props = withDefaults(
     estimatedItemSize: 48,
     height: 400,
     overscan: 5,
+    size: undefined,
     itemKey: undefined,
     ariaLabel: 'Chat messages',
     stickToBottom: true,
@@ -85,6 +88,11 @@ const normalizedEstimate = computed(() =>
   Math.max(1, props.estimatedItemSize),
 )
 const normalizedOverscan = computed(() => Math.max(0, Math.floor(props.overscan)))
+const normalizedSize = computed(() =>
+  props.size !== undefined && Number.isFinite(props.size) && props.size > 0
+    ? Math.max(1, Math.floor(props.size))
+    : undefined,
+)
 const viewportHeight = computed(() => {
   if (measuredHeight.value > 0) return measuredHeight.value
   if (typeof props.height === 'number') return Math.max(0, props.height)
@@ -139,23 +147,33 @@ function findIndexAtOffset(offset: number) {
   return Math.min(low, props.items.length - 1)
 }
 
-const startIndex = computed(() =>
-  Math.max(
-    0,
-    findIndexAtOffset(scrollTop.value) - normalizedOverscan.value,
-  ),
-)
+const renderRange = computed(() => {
+  if (props.items.length === 0) return { start: 0, end: 0 }
 
-const endIndex = computed(() => {
-  if (props.items.length === 0) return 0
-
-  const lastVisible =
+  const firstVisible = findIndexAtOffset(scrollTop.value)
+  const visibleEnd =
     findIndexAtOffset(scrollTop.value + viewportHeight.value) + 1
-  return Math.min(
+  const start = Math.max(0, firstVisible - normalizedOverscan.value)
+  const end = Math.min(
     props.items.length,
-    lastVisible + normalizedOverscan.value,
+    visibleEnd + normalizedOverscan.value,
   )
+  const size = normalizedSize.value
+  if (size === undefined || end - start <= size) return { start, end }
+
+  // Trim only overscan so a small budget cannot leave gaps in the viewport.
+  const budget = Math.max(0, size - (visibleEnd - firstVisible))
+  const availableBefore = firstVisible - start
+  const availableAfter = end - visibleEnd
+  let before = Math.min(availableBefore, Math.ceil(budget / 2))
+  const after = Math.min(availableAfter, budget - before)
+  before = Math.min(availableBefore, budget - after)
+
+  return { start: firstVisible - before, end: visibleEnd + after }
 })
+
+const startIndex = computed(() => renderRange.value.start)
+const endIndex = computed(() => renderRange.value.end)
 
 const visibleItems = computed(() =>
   props.items

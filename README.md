@@ -571,6 +571,7 @@ height added above the viewport and restores the reader's position.
 | `estimatedItemSize` | `number` | `48` | Initial average message height in pixels. |
 | `height` | `number \| string` | `400` | Viewport height. A number is pixels; `"fill"` maps to `100%`. |
 | `overscan` | `number` | `5` | Extra messages mounted before and after the visible range. |
+| `size` | `number` | unset | Optional total render budget including overscan, e.g. `:size="12"` for mobile. Trims overscan first; always renders enough messages to fill the viewport, even if this exceeds `size`. Does not add messages beyond `overscan`. Positive values are floored (minimum 1); non-positive or non-finite values disable the budget. |
 | `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key`, or index | Stable identity; especially important when prepending. |
 | `ariaLabel` | `string` | `"Chat messages"` | Accessible label for the live log. |
 | `stickToBottom` | `boolean` | `true` | Follows appended messages while currently near the bottom. |

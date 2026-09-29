@@ -90,6 +90,7 @@ function appendMessage() {
       :estimated-item-size="140"
       :height="560"
       :overscan="6"
+      :size="12"
       item-key="id"
       :has-older="hasOlder"
       :loading-older="loadingOlder"

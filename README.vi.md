@@ -571,6 +571,7 @@ chiều cao được thêm phía trên viewport và khôi phục vị trí của
 | `estimatedItemSize` | `number` | `48` | Chiều cao trung bình ban đầu của tin nhắn, tính bằng pixel. |
 | `height` | `number \| string` | `400` | Chiều cao viewport. Số được hiểu là pixel; `"fill"` tương đương `100%`. |
 | `overscan` | `number` | `5` | Số tin nhắn mount thêm trước và sau vùng đang hiển thị. |
+| `size` | `number` | không đặt | Giới hạn tổng số tin nhắn render, bao gồm overscan, ví dụ `:size="12"` cho mobile. Giảm overscan trước; luôn render đủ vùng nhìn dù phải vượt `size`. Không tăng số tin nhắn vượt phạm vi `overscan`. Số dương được làm tròn xuống (tối thiểu 1); số không dương hoặc không hữu hạn sẽ tắt giới hạn. |
 | `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key` hoặc index | Định danh ổn định, đặc biệt quan trọng khi thêm vào đầu. |
 | `ariaLabel` | `string` | `"Chat messages"` | Nhãn hỗ trợ khả năng tiếp cận cho live log. |
 | `stickToBottom` | `boolean` | `true` | Bám theo tin nhắn mới nếu hiện tại đang gần cuối. |

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.6] - 2026-09-29
+
+### Added
+- **ChatVirtualScroll**: Added an optional `size` prop to limit mounted messages including overscan, while always keeping enough messages to fill the viewport
+
+### Improved
+- Added English and Vietnamese documentation for `size` and configured the chat playground with a render budget of 12 messages
+- Added regression tests for render budgets, reactive updates, variable message heights, append/prepend behavior, and scrolling up in a portrait mobile viewport
+
 ## [0.0.5] - 2026-09-29
 
 ### Added

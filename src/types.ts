@@ -79,6 +79,8 @@ export interface ChatVirtualScrollProps<T> {
   estimatedItemSize?: number
   height?: number | string
   overscan?: number
+  /** Render budget including overscan; always keeps the viewport filled. */
+  size?: number
   itemKey?: ItemKey<T>
   ariaLabel?: string
   stickToBottom?: boolean
