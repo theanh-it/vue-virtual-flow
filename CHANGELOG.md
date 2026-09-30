@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **ChatVirtualScroll**: Anchor native scrolling at the bottom so prepended history is immediately reachable during touch scrolling, without rebasing the scroll position
+- **ChatVirtualScroll**: Preserve the reading position when messages below the viewport resize or new messages arrive during a gesture
+
+### Improved
+- Measure previously unseen chat messages before paint and update measured offsets in O(log n) instead of rebuilding the full history on every measurement batch
+- Cover cold variable-height scrolling, native Chromium touch input, and prepend/resize anchoring across Chromium, Firefox, and WebKit
+
+### Changed
+- The chat's internal DOM `scrollTop` is now negative above the bottom. Exposed scrolling methods and `scroll` event offsets remain measured from the top; use those APIs instead of accessing the native offset directly
+
 ## [0.0.7] - 2026-09-29
 
 ### Fixed

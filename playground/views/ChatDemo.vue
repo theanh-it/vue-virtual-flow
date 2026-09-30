@@ -121,7 +121,9 @@ function appendMessage() {
                 :alt="`Image shared by ${item.author}`"
                 :width="item.imageWidth"
                 :height="item.imageHeight"
+                :style="{ aspectRatio: `${item.imageWidth} / ${item.imageHeight}` }"
                 loading="lazy"
+                decoding="async"
               />
               <figcaption>{{ item.text }}</figcaption>
             </figure>

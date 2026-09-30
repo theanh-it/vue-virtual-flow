@@ -560,8 +560,21 @@ async function loadOlder() {
 </template>
 ```
 
-Hãy thêm dữ liệu cũ vào đầu cùng một collection có key ổn định. Component tính
-chiều cao được thêm phía trên viewport và khôi phục vị trí của người đọc.
+Hãy thêm dữ liệu cũ vào đầu cùng một collection có key ổn định. Vùng cuộn lấy
+đáy làm mốc nên việc thêm hoặc đo tin nhắn phía trên người đọc không cần sửa vị
+trí cuộn native. Tin nhắn xuất hiện lần đầu được đo trước khi vẽ; các thay đổi chiều cao
+được cập nhật riêng trong bảng chỉ mục.
+
+Dùng các method qua ref và sự kiện `scroll` để thao tác với vị trí tính từ đầu
+danh sách. Phần tử cuộn DOM bên trong dùng `scrollTop` âm (bằng 0 ở đáy); code
+đọc hoặc ghi trực tiếp thuộc tính DOM này cần tính đến khác biệt đó. Thứ tự DOM
+của tin nhắn vẫn từ cũ đến mới.
+
+Để chat có ảnh/video cuộn mượt, hãy dành sẵn kích thước bằng `width`, `height`
+hoặc `aspect-ratio`, đặt chiều cao ước lượng gần thực tế và tránh giới hạn `size`
+quá thấp khiến mất phần lớn overscan. Đặt `loadOlderThreshold` đủ lớn để tải trang
+kế tiếp trước khi người dùng chạm tin cũ nhất đã có; virtualization không thể che
+độ trễ mạng sau khi đã chạm mốc này.
 
 #### Props
 

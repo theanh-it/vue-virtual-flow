@@ -16,6 +16,7 @@ import type {
   VirtualScrollEvent,
 } from '../types'
 import { createZeroHeightWarning, toCssHeight } from '../utils/layout'
+import { createSizeIndex } from '../utils/sizeIndex'
 
 defineOptions({
   name: 'ChatVirtualScroll',
@@ -74,6 +75,7 @@ const measurementVersion = ref(0)
 const isAtBottom = ref(true)
 const measuredSizes = new Map<PropertyKey, number>()
 const observedElements = new Map<HTMLElement, PropertyKey>()
+const unmeasuredElements = new Set<HTMLElement>()
 let viewportResizeObserver: ResizeObserver | undefined
 let itemResizeObserver: ResizeObserver | undefined
 let lastLoadOlderItemCount = -1
@@ -83,6 +85,10 @@ let touchScrolling = false
 let scrollIdleTimer: ReturnType<typeof setTimeout> | undefined
 let pendingScrollAdjustment = 0
 let adjustmentScheduled = false
+let adjustmentGeneration = 0
+let pendingIndexScroll: { key: PropertyKey; align: ScrollAlignment } | undefined
+let expectedNativeTop: number | undefined
+let finishSmoothScroll: (() => void) | undefined
 let scrollRequestVersion = 0
 const warnIfZeroHeight = createZeroHeightWarning('ChatVirtualScroll')
 const { getItemKey } = useItemKey<T>({
@@ -92,7 +98,7 @@ const { getItemKey } = useItemKey<T>({
 })
 
 const normalizedEstimate = computed(() =>
-  Math.max(1, props.estimatedItemSize),
+  Number.isFinite(props.estimatedItemSize) ? Math.max(1, props.estimatedItemSize) : 48,
 )
 const normalizedOverscan = computed(() => Math.max(0, Math.floor(props.overscan)))
 const normalizedSize = computed(() =>
@@ -106,53 +112,32 @@ const viewportHeight = computed(() => {
   return normalizedEstimate.value
 })
 
+// Rebuild only when the data/estimate changes. Measurements update this index
+// in O(log n), without scanning every message on the scrolling path.
+const layout = computed(() => {
+  const keys = props.items.map((item, index) => getItemKey(item, index))
+  return {
+    keys,
+    indexes: new Map(keys.map((key, index) => [key, index])),
+    sizes: createSizeIndex(keys.map((key) => measuredSizes.get(key) ?? normalizedEstimate.value)),
+  }
+})
 const metrics = computed(() => {
   measurementVersion.value
-
-  const offsets = new Array<number>(props.items.length + 1)
-  const sizes = new Array<number>(props.items.length)
-  offsets[0] = 0
-
-  for (let index = 0; index < props.items.length; index += 1) {
-    const key = getItemKey(props.items[index], index)
-    const size = measuredSizes.get(key) ?? normalizedEstimate.value
-    sizes[index] = size
-    offsets[index + 1] = offsets[index] + size
-  }
-
-  return {
-    offsets,
-    sizes,
-    total: offsets[props.items.length] ?? 0,
-  }
+  return { sizes: layout.value.sizes, total: layout.value.sizes.total }
 })
 
-const indexByKey = computed(() => {
-  const indexes = new Map<PropertyKey, number>()
-  props.items.forEach((item, index) => {
-    indexes.set(getItemKey(item, index), index)
-  })
-  return indexes
-})
+function getMaximum(total = metrics.value.total) {
+  return Math.max(0, total - viewportHeight.value)
+}
 
 function findIndexAtOffset(offset: number) {
-  if (props.items.length === 0) return 0
-
-  const offsets = metrics.value.offsets
-  let low = 0
-  let high = props.items.length
-
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2)
-    if (offsets[middle + 1] <= offset) {
-      low = middle + 1
-    } else {
-      high = middle
-    }
-  }
-
-  return Math.min(low, props.items.length - 1)
+  return metrics.value.sizes.findIndex(offset)
 }
+
+// Native scrolling starts at the bottom. Render the initial range there too,
+// avoiding a mount/measure/unmount of the oldest page before showing the latest.
+scrollTop.value = props.initialScroll === 'bottom' ? getMaximum() : 0
 
 const renderRange = computed(() => {
   if (props.items.length === 0) return { start: 0, end: 0 }
@@ -191,7 +176,8 @@ const visibleItems = computed(() =>
         item,
         index,
         key: getItemKey(item, index),
-        top: metrics.value.offsets[index] - scrollCompensation.value,
+        bottom: Math.max(metrics.value.total, viewportHeight.value)
+          - metrics.value.sizes.getOffset(index + 1) + scrollCompensation.value,
       }
     }),
 )
@@ -200,39 +186,56 @@ const containerStyle = computed(() => ({
   height: toCssHeight(props.height),
 }))
 
-function getScrollTop() {
-  return (viewport.value?.scrollTop ?? 0) + pendingScrollAdjustment
+function getScrollTop(total = metrics.value.total) {
+  // Clamp elastic overscroll without writing to the native scroller.
+  const maximum = getMaximum(total)
+  const nativeTop = Math.min(0, viewport.value?.scrollTop ?? 0)
+  return Math.max(0, Math.min(maximum, maximum + nativeTop + pendingScrollAdjustment))
 }
 
-function scheduleScrollAdjustment() {
-  if (adjustmentScheduled) return
+function scheduleScrollAdjustment(atBoundary = false) {
+  if (adjustmentScheduled || ((touchScrolling || finishSmoothScroll) && !atBoundary)) return
+  if (pendingScrollAdjustment === 0) return
   adjustmentScheduled = true
+  const version = scrollRequestVersion
+  const generation = ++adjustmentGeneration
+  scrollCompensation.value = 0
 
   nextTick(() => {
+    if (generation !== adjustmentGeneration) return
     adjustmentScheduled = false
     const element = viewport.value
-    if (!element || touchScrolling || pendingScrollAdjustment === 0) return
+    if (!element || version !== scrollRequestVersion || pendingScrollAdjustment === 0) return
 
-    // The new spacer and render range must exist before changing native scrollTop.
+    // Commit after the spacer/rows have been patched. Use the logical target
+    // because a shrinking spacer may already have clamped the native offset.
     pendingScrollAdjustment = 0
-    // Use the logical target: a shorter spacer may already have clamped native
-    // scrollTop, so adding the delta again would move the anchor twice.
-    element.scrollTop = scrollTop.value
-    scrollTop.value = element.scrollTop
+    element.scrollTop = Math.min(0, scrollTop.value - getMaximum())
+    expectedNativeTop = element.scrollTop
+    scrollTop.value = getScrollTop()
     updateBottomState()
     maybeEmitLoadOlder()
   })
 }
 
 function adjustScrollPosition(adjustment: number) {
-  if (!viewport.value || adjustment === 0) return
+  const element = viewport.value
+  if (!element) return
 
   pendingScrollAdjustment += adjustment
-  // Update the range before Vue patches the rows, preserving their keyed DOM.
   scrollTop.value = getScrollTop()
-  if (touchScrolling) {
-    // Keep the anchor in place without interrupting native touch momentum.
+  if (pendingScrollAdjustment === 0 || getMaximum() === 0) {
+    pendingScrollAdjustment = 0
+    scrollCompensation.value = 0
+    return
+  }
+  if ((touchScrolling || finishSmoothScroll) && !adjustmentScheduled) {
+    // Only changes below the reading anchor need compensation. Prepending and
+    // measuring history above it leave native momentum completely untouched.
     scrollCompensation.value = pendingScrollAdjustment
+    // At the native bottom there is no further momentum to preserve. Rebase
+    // immediately so newly appended content remains reachable in this gesture.
+    if (element.scrollTop >= -1) scheduleScrollAdjustment(true)
   } else {
     scheduleScrollAdjustment()
   }
@@ -247,20 +250,33 @@ function handleScrollEnd() {
   if (touching) return
   clearScrollIdleTimer()
   touchScrolling = false
+  const finish = finishSmoothScroll
+  finishSmoothScroll = undefined
+  if (finish) {
+    // A smooth animation can outlive its estimated destination as cold rows
+    // are measured. Resolve the public destination against the final layout.
+    finish()
+    return
+  }
   scrollTop.value = getScrollTop()
-  scrollCompensation.value = 0
   scheduleScrollAdjustment()
 }
 
 function scheduleScrollEnd() {
   clearScrollIdleTimer()
   // Also covers browsers without scrollend and taps that produce no scroll event.
-  if (touchScrolling && !touching) {
+  if ((touchScrolling || finishSmoothScroll) && !touching) {
     scrollIdleTimer = setTimeout(handleScrollEnd, 150)
   }
 }
 
+function cancelScrollTarget() {
+  pendingIndexScroll = undefined
+  finishSmoothScroll = undefined
+}
+
 function handleTouchStart() {
+  cancelScrollTarget()
   clearScrollIdleTimer()
   touching = true
   touchScrolling = true
@@ -289,6 +305,7 @@ function updateBottomState() {
 
 function updateMeasuredHeight() {
   measuredHeight.value = viewport.value?.clientHeight ?? 0
+  if (mounted) scrollTop.value = getScrollTop()
   warnIfZeroHeight(viewport.value, props.height)
   nextTick(() => {
     updateBottomState()
@@ -297,13 +314,14 @@ function updateMeasuredHeight() {
 }
 
 function handleScroll() {
-  if (pendingScrollAdjustment < 0 && getScrollTop() < 0) {
-    // Shrinking rows can move the logical start below the native scroll origin.
-    // Consume that offset at the boundary instead of exposing an empty gap.
-    pendingScrollAdjustment = -Math.max(0, viewport.value?.scrollTop ?? 0)
-    if (touchScrolling) scrollCompensation.value = pendingScrollAdjustment
+  if (pendingIndexScroll && expectedNativeTop !== undefined
+    && Math.abs((viewport.value?.scrollTop ?? 0) - expectedNativeTop) > 1) {
+    cancelScrollTarget()
   }
   scrollTop.value = getScrollTop()
+  if (pendingScrollAdjustment !== 0 && (viewport.value?.scrollTop ?? 0) >= -1) {
+    scheduleScrollAdjustment(true)
+  }
   scheduleScrollEnd()
   updateBottomState()
   emit('scroll', {
@@ -341,43 +359,65 @@ function getEntryHeight(entry: ResizeObserverEntry) {
   return entry.contentRect.height
 }
 
-function handleItemResize(entries: ResizeObserverEntry[]) {
-  const previousMetrics = metrics.value
+function updateItemSizes(measurements: { key: PropertyKey; height: number }[]) {
+  const previousTotal = metrics.value.total
   const previousScrollTop = getScrollTop()
-  const keepAtBottom = !touchScrolling && isAtBottom.value && props.stickToBottom
-  let adjustmentAboveViewport = 0
+  const keepAtBottom = !touchScrolling && !finishSmoothScroll && isAtBottom.value && props.stickToBottom
+    && (mounted || props.initialScroll === 'bottom')
+  // Anchor the bottom edge of the last visible message. Newly discovered older
+  // messages can grow upward without moving the conversation already on screen.
+  const anchor = findIndexAtOffset(previousScrollTop + viewportHeight.value - 1)
+  const keepAtTop = !keepAtBottom && previousScrollTop <= 0
+  let anchorAdjustment = 0
   let changed = false
 
-  for (const entry of entries) {
-    const element = entry.target as HTMLElement
-    const key = observedElements.get(element)
-    const height = getEntryHeight(entry)
-    if (key === undefined || height <= 0) continue
-
-    const previous = measuredSizes.get(key) ?? normalizedEstimate.value
+  for (const { key, height } of measurements) {
+    if (!Number.isFinite(height) || height <= 0) continue
+    const index = layout.value.indexes.get(key)
+    if (index === undefined) continue
+    const previous = metrics.value.sizes.getSize(index)
+    measuredSizes.set(key, height)
     if (Math.abs(previous - height) < 0.5) continue
 
-    const index = indexByKey.value.get(key)
-    if (
-      index !== undefined &&
-      previousMetrics.offsets[index + 1] <= previousScrollTop
-    ) {
-      adjustmentAboveViewport += height - previous
-    }
-
-    measuredSizes.set(key, height)
+    if (index <= anchor) anchorAdjustment += height - previous
+    metrics.value.sizes.setSize(index, height)
     changed = true
   }
 
   if (!changed) return
   measurementVersion.value += 1
-
-  const element = viewport.value
-  if (!element) return
-  adjustScrollPosition(keepAtBottom
-    ? Math.max(0, metrics.value.total - element.clientHeight) - previousScrollTop
-    : adjustmentAboveViewport)
+  const maximumDelta = getMaximum() - getMaximum(previousTotal)
+  const requestedIndex = pendingIndexScroll && layout.value.indexes.get(pendingIndexScroll.key)
+  const desiredTop = requestedIndex !== undefined && pendingIndexScroll
+    ? getAlignedTop(requestedIndex, pendingIndexScroll.align)
+    : keepAtBottom ? getMaximum()
+    : keepAtTop ? 0 : previousScrollTop + anchorAdjustment
+  adjustScrollPosition(desiredTop - previousScrollTop - maximumDelta)
   nextTick(updateBottomState)
+}
+
+function handleItemResize(entries: ResizeObserverEntry[]) {
+  const measurements: { key: PropertyKey; height: number }[] = []
+  for (const entry of entries) {
+    const key = observedElements.get(entry.target as HTMLElement)
+    if (key !== undefined) measurements.push({ key, height: getEntryHeight(entry) })
+  }
+  updateItemSizes(measurements)
+}
+
+function measureNewElements() {
+  // Read new rows together after Vue patches, before paint. ResizeObserver
+  // remains responsible for later image/font/content changes. Cached rows do
+  // not need this synchronous first measurement again.
+  const measurements: { key: PropertyKey; height: number }[] = []
+  for (const element of unmeasuredElements) {
+    const key = observedElements.get(element)
+    if (key !== undefined && element.isConnected) {
+      measurements.push({ key, height: element.getBoundingClientRect().height })
+    }
+  }
+  unmeasuredElements.clear()
+  updateItemSizes(measurements)
 }
 
 function setItemElement(
@@ -388,6 +428,7 @@ function setItemElement(
   if (observedElements.get(value) === key) return
 
   observedElements.set(value, key)
+  if (!measuredSizes.has(key)) unmeasuredElements.add(value)
   itemResizeObserver?.observe(value)
 }
 
@@ -396,6 +437,7 @@ function removeDisconnectedElements() {
     if (!element.isConnected) {
       itemResizeObserver?.unobserve(element)
       observedElements.delete(element)
+      unmeasuredElements.delete(element)
     }
   }
 }
@@ -407,7 +449,11 @@ function applyScrollPosition(top: number, options: ScrollToOptions, direct = fal
   const previousScrollTop = getScrollTop()
   const wasCompensating = scrollCompensation.value !== 0
   const version = ++scrollRequestVersion
+  adjustmentGeneration += 1
+  adjustmentScheduled = false
+  pendingIndexScroll = undefined
   const behavior = options.behavior ?? 'auto'
+  finishSmoothScroll = behavior === 'smooth' ? () => scrollTo(top) : undefined
   pendingScrollAdjustment = 0
   scrollCompensation.value = 0
   touchScrolling = false
@@ -416,12 +462,15 @@ function applyScrollPosition(top: number, options: ScrollToOptions, direct = fal
 
   const apply = () => {
     if (viewport.value !== element || version !== scrollRequestVersion) return
-    if (wasCompensating && behavior !== 'auto') element.scrollTop = previousScrollTop
+    if (wasCompensating && behavior !== 'auto') element.scrollTop = previousScrollTop - getMaximum()
     if (direct && behavior === 'auto') {
-      element.scrollTop = top
+      element.scrollTop = top - getMaximum()
     } else {
-      element.scrollTo({ ...options, top, behavior })
+      element.scrollTo({ ...options, top: top - getMaximum(), behavior })
     }
+    expectedNativeTop = element.scrollTop
+    if (behavior === 'auto') scrollTop.value = getScrollTop()
+    else scheduleScrollEnd()
     nextTick(updateBottomState)
   }
 
@@ -441,32 +490,36 @@ function scrollTo(position: number, options: ScrollToOptions = {}) {
   applyScrollPosition(top, options)
 }
 
+function getAlignedTop(index: number, align: ScrollAlignment) {
+  const itemSize = metrics.value.sizes.getSize(index)
+  let top = metrics.value.sizes.getOffset(index)
+  if (align === 'center') top -= (viewportHeight.value - itemSize) / 2
+  else if (align === 'end') top -= viewportHeight.value - itemSize
+  return Math.max(0, Math.min(top, getMaximum()))
+}
+
 function scrollToIndex(
   index: number,
   options: ScrollToOptions & { align?: ScrollAlignment } = {},
 ) {
-  const element = viewport.value
-  if (!element || props.items.length === 0) return
-
+  if (!viewport.value || props.items.length === 0) return
   const safeIndex = Math.min(
     props.items.length - 1,
-    Math.max(0, Math.floor(index)),
+    Math.max(0, Math.floor(Number.isFinite(index) ? index : 0)),
   )
   const { align = 'start', ...scrollOptions } = options
-  const itemSize = metrics.value.sizes[safeIndex]
-  let top = metrics.value.offsets[safeIndex]
-
-  if (align === 'center') {
-    top -= (element.clientHeight - itemSize) / 2
-  } else if (align === 'end') {
-    top -= element.clientHeight - itemSize
+  applyScrollPosition(getAlignedTop(safeIndex, align), scrollOptions)
+  const key = layout.value.keys[safeIndex]
+  if (options.behavior === 'smooth') {
+    finishSmoothScroll = () => {
+      const index = layout.value.indexes.get(key)
+      if (index !== undefined) scrollToIndex(index, { align })
+    }
+  } else {
+    // Keep the requested message aligned through asynchronous image/font
+    // measurements too. Any user input or subsequent scroll command releases it.
+    pendingIndexScroll = { key, align }
   }
-
-  const targetTop = Math.max(
-    0,
-    Math.min(top, metrics.value.total - element.clientHeight),
-  )
-  applyScrollPosition(targetTop, scrollOptions)
 }
 
 function scrollToTop(behavior: ScrollBehavior = 'auto') {
@@ -479,49 +532,41 @@ function scrollToBottom(behavior: ScrollBehavior = 'auto') {
 
   const top = Math.max(0, metrics.value.total - element.clientHeight)
   applyScrollPosition(top, { behavior }, true)
+  if (behavior === 'smooth') finishSmoothScroll = () => scrollToBottom()
 }
 
-let previousKeys = props.items.map((item, index) => getItemKey(item, index))
-
 watch(
-  () => props.items.map((item, index) => getItemKey(item, index)),
-  async (nextKeys) => {
-    const oldKeys = previousKeys
-    previousKeys = nextKeys
-    const element = viewport.value
-    const keepAtBottom = !touchScrolling && isAtBottom.value && props.stickToBottom
-    const previousFirstKey = oldKeys[0]
-    const prependedCount =
-      previousFirstKey === undefined ? 0 : nextKeys.indexOf(previousFirstKey)
-    const prependedHeight =
-      prependedCount > 0
-        ? nextKeys
-            .slice(0, prependedCount)
-            .reduce<number>(
-              (total, key) =>
-                total + (measuredSizes.get(key) ?? normalizedEstimate.value),
-              0,
-            )
-        : 0
+  layout,
+  async (next, previous) => {
+    const previousTotal = previous.sizes.total
+    const previousTop = getScrollTop(previousTotal)
+    const keepAtBottom = !touchScrolling && !finishSmoothScroll && isAtBottom.value && props.stickToBottom
+    const anchorIndex = previous.sizes.findIndex(previousTop + viewportHeight.value - 1)
+    const anchorKey = previous.keys[anchorIndex]
+    const nextAnchor = anchorKey === undefined ? undefined : next.indexes.get(anchorKey)
+    const maximumDelta = getMaximum() - getMaximum(previousTotal)
 
-    const currentKeys = new Set(nextKeys)
     for (const key of measuredSizes.keys()) {
-      if (!currentKeys.has(key)) measuredSizes.delete(key)
+      if (!next.indexes.has(key)) measuredSizes.delete(key)
     }
-    measurementVersion.value += 1
 
-    if (prependedHeight > 0) {
-      adjustScrollPosition(prependedHeight)
-    } else if (element && nextKeys.length > oldKeys.length && keepAtBottom) {
-      adjustScrollPosition(
-        Math.max(0, metrics.value.total - element.clientHeight) - getScrollTop(),
-      )
-    } else if (nextKeys.length === 0 || prependedCount < 0) {
+    if (next.keys.length === 0 || nextAnchor === undefined) {
       pendingScrollAdjustment = 0
       scrollCompensation.value = 0
+      scrollTop.value = keepAtBottom ? getMaximum() : Math.min(previousTop, getMaximum())
+      const target = scrollTop.value
+      const version = scrollRequestVersion
+      await nextTick()
+      if (version === scrollRequestVersion && layout.value === next) {
+        applyScrollPosition(target, {}, true)
+      }
+    } else {
+      const anchorAdjustment = next.sizes.getOffset(nextAnchor + 1)
+        - previous.sizes.getOffset(anchorIndex + 1)
+      const desiredTop = keepAtBottom ? getMaximum() : previousTop + anchorAdjustment
+      adjustScrollPosition(desiredTop - previousTop - maximumDelta)
+      await nextTick()
     }
-
-    await nextTick()
     if (!viewport.value) return
     scrollTop.value = getScrollTop()
     updateBottomState()
@@ -540,6 +585,11 @@ watch(
 
 onMounted(() => {
   updateMeasuredHeight()
+  if (viewport.value) {
+    viewport.value.scrollTop = props.initialScroll === 'bottom' ? 0 : -getMaximum()
+    scrollTop.value = getScrollTop()
+  }
+  measureNewElements()
 
   if (typeof ResizeObserver !== 'undefined') {
     viewportResizeObserver = new ResizeObserver(updateMeasuredHeight)
@@ -552,22 +602,24 @@ onMounted(() => {
   }
 
   nextTick(() => {
-    if (props.initialScroll === 'bottom') {
-      scrollToBottom('auto')
-    }
     mounted = true
     updateBottomState()
     maybeEmitLoadOlder()
   })
 })
 
-onUpdated(removeDisconnectedElements)
+onUpdated(() => {
+  removeDisconnectedElements()
+  measureNewElements()
+})
 
 onBeforeUnmount(() => {
   mounted = false
   clearScrollIdleTimer()
+  cancelScrollTarget()
   pendingScrollAdjustment = 0
   scrollRequestVersion += 1
+  adjustmentGeneration += 1
   if (viewportResizeObserver) {
     viewportResizeObserver.disconnect()
     viewportResizeObserver = undefined
@@ -577,6 +629,7 @@ onBeforeUnmount(() => {
     itemResizeObserver = undefined
   }
   observedElements.clear()
+  unmeasuredElements.clear()
 })
 
 defineExpose({
@@ -599,40 +652,40 @@ defineExpose({
     tabindex="0"
     @scroll.passive="handleScroll"
     @scrollend.passive="handleScrollEnd"
+    @pointerdown.passive="cancelScrollTarget"
+    @wheel.passive="cancelScrollTarget"
+    @keydown="cancelScrollTarget"
     @touchstart.passive="handleTouchStart"
     @touchend.passive="handleTouchEnd"
     @touchcancel.passive="handleTouchEnd"
   >
     <div
-      v-if="loadingOlder"
-      class="vue-chat-virtual-scroll__loading-older"
-      role="status"
-      aria-live="polite"
-    >
-      <div>
-        <slot name="loadingOlder">Loading older messages…</slot>
-      </div>
-    </div>
-
-    <div
-      v-if="items.length"
       class="vue-chat-virtual-scroll__spacer"
-      :style="{ height: `${Math.max(0, metrics.total - scrollCompensation)}px` }"
+      :style="{ height: `${Math.max(viewportHeight, metrics.total + scrollCompensation)}px` }"
     >
       <div
-        v-for="{ item, index, key, top } in visibleItems"
+        v-if="loadingOlder"
+        class="vue-chat-virtual-scroll__loading-older"
+        role="status"
+        aria-live="polite"
+      >
+        <div>
+          <slot name="loadingOlder">Loading older messages…</slot>
+        </div>
+      </div>
+      <div
+        v-for="{ item, index, key, bottom } in visibleItems"
         :key="key"
         :ref="(element) => setItemElement(element, key)"
         class="vue-chat-virtual-scroll__item"
-        :style="{ transform: `translateY(${top}px)` }"
+        :style="{ transform: `translateY(${-bottom}px)` }"
         role="article"
         :aria-posinset="index + 1"
         :aria-setsize="items.length"
       >
         <slot :item="item" :index="index" />
       </div>
+      <slot v-if="!items.length" name="empty" />
     </div>
-
-    <slot v-else name="empty" />
   </div>
 </template>

@@ -560,8 +560,21 @@ async function loadOlder() {
 </template>
 ```
 
-Prepend older data to the same keyed collection. The component calculates the
-height added above the viewport and restores the reader's position.
+Prepend older data to the same keyed collection. The scroll container is anchored
+at the bottom, so adding or measuring older messages above the reader does not
+need a native scroll correction. Previously unseen messages are measured before
+paint, and cached height updates use an incremental size index.
+
+Use the exposed methods and the `scroll` event for positions measured from the
+top. The internal DOM scroller uses negative `scrollTop` values (zero at the
+bottom); code that directly reads or writes that DOM property must account for
+this. Message DOM order remains oldest to newest.
+
+For smooth media conversations, reserve image/video dimensions with `width`,
+`height`, or `aspect-ratio`, use an estimate close to your message heights, and
+avoid a `size` budget that removes most overscan. Set `loadOlderThreshold` high
+enough to fetch the next page before the user reaches the oldest loaded message;
+virtualization cannot hide network latency once that boundary is reached.
 
 #### Props
 

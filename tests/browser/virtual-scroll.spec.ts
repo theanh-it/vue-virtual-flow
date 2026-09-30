@@ -95,8 +95,7 @@ test('window list jumps directly and chat remains pinned after append', async ({
   await expect
     .poll(() =>
       chat.evaluate(
-        (element) =>
-          element.scrollHeight - element.scrollTop - element.clientHeight,
+        (element) => Math.abs(element.scrollTop),
       ),
     )
     .toBeLessThanOrEqual(1)
@@ -112,7 +111,7 @@ test('chat respects size while scrolling up on a portrait mobile viewport', asyn
 
   for (const fraction of [0.75, 0.5, 0.25, 0]) {
     await chat.evaluate((element, value) => {
-      element.scrollTop = (element.scrollHeight - element.clientHeight) * value
+      element.scrollTop = (element.scrollHeight - element.clientHeight) * (value - 1)
     }, fraction)
     await expect.poll(() => chat.evaluate((element) => {
       const mounted = Array.from(element.querySelectorAll('.vue-chat-virtual-scroll__item'))
