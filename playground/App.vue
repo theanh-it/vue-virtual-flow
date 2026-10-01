@@ -1,6 +1,14 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const immersive = computed(() => route.meta.immersive === true)
+</script>
+
 <template>
-  <div class="app-shell">
-    <header class="app-header">
+  <div class="app-shell" :class="{ 'app-shell--immersive': immersive }">
+    <header v-if="!immersive" class="app-header">
       <RouterLink class="brand" to="/dynamic">Vue Virtual Scroll</RouterLink>
 
       <nav aria-label="Playground demos">
@@ -11,12 +19,13 @@
         <RouterLink to="/chat">Chat</RouterLink>
         <RouterLink to="/load-more">Load more</RouterLink>
         <RouterLink to="/short-media">Short media</RouterLink>
+        <RouterLink to="/full-page">Full page</RouterLink>
         <RouterLink to="/carousel">Carousel</RouterLink>
         <RouterLink to="/responsive-carousel">Responsive</RouterLink>
       </nav>
     </header>
 
-    <main>
+    <main :class="{ 'app-main--immersive': immersive }">
       <RouterView />
     </main>
   </div>

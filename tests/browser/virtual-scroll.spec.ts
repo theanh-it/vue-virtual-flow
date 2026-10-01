@@ -74,6 +74,40 @@ test('carousel and short feed respond to keyboard navigation', async ({
   expect(errors).toEqual([])
 })
 
+test('full-page demo navigates sections and stays virtualized', async ({
+  page,
+}) => {
+  const errors = failOnPageErrors(page)
+
+  await page.goto('/#/full-page')
+  const feed = page.getByRole('list', { name: 'Full-page product story' })
+  const carousel = page.getByRole('region', { name: 'Featured process' })
+
+  await expect(page.getByText('Section 1 of 4')).toBeVisible()
+  await expect(page.getByText(/01\s*\/\s*04/)).toBeVisible()
+  await carousel.press('ArrowRight')
+  await expect(page.getByText(/02\s*\/\s*04/)).toBeVisible()
+  expect(await carousel.getByRole('listitem').count()).toBeLessThanOrEqual(3)
+  await page.mouse.wheel(0, 120)
+  await expect(page.getByText('Section 2 of 4')).toBeVisible()
+  await expect
+    .poll(() =>
+      feed.evaluate((element) =>
+        Math.abs(element.scrollTop - element.clientHeight),
+      ),
+    )
+    .toBeLessThan(2)
+  await page
+    .getByRole('button', { name: 'Go to section 3: scale' })
+    .click()
+  await expect(page.getByText('Section 3 of 4')).toBeVisible()
+  await expect(page.getByText('A tiny DOM, even at scale.')).toBeVisible()
+  expect(
+    await feed.locator(':scope > .vue-short-media-feed__item').count(),
+  ).toBeLessThanOrEqual(3)
+  expect(errors).toEqual([])
+})
+
 test('window list jumps directly and chat remains pinned after append', async ({
   page,
 }) => {

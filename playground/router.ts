@@ -43,6 +43,12 @@ export const router = createRouter({
       component: () => import('./views/ShortMediaFeedDemo.vue'),
     },
     {
+      path: '/full-page',
+      name: 'full-page',
+      component: () => import('./views/FullPageSectionsDemo.vue'),
+      meta: { immersive: true },
+    },
+    {
       path: '/carousel',
       name: 'carousel',
       component: () => import('./views/VirtualCarouselDemo.vue'),
