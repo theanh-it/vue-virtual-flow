@@ -720,8 +720,11 @@ These keys work while the viewport is focused:
 | `Home` | Moves to the first position. |
 | `End` | Moves to the last item. |
 
-For an unbounded feed, page data with `load-more` and keep a reasonable item
-window in the parent. Virtualization limits mounted DOM and media elements,
+The viewport also converts mouse-wheel input into slide transitions. The wheel
+handler in the component is enabled by default; nothing extra is required from
+the parent. For touch input, native scroll-snap continues to handle swipes.
+
+For an unbounded feed, page data with `load-more` and handle parents. Virtualization limits mounted DOM and media elements,
 but it does not remove objects from `items`.
 
 ### VirtualCarousel

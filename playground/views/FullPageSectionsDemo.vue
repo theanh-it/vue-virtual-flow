@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { ref } from 'vue'
 import ShortMediaFeed from '../../src/components/ShortMediaFeed.vue'
 import VirtualCarousel from '../../src/components/VirtualCarousel.vue'
 import type {
@@ -11,9 +11,6 @@ const feed = ref<ShortMediaFeedExpose>()
 const carousel = ref<VirtualCarouselExpose>()
 const activeIndex = ref(0)
 const activeSlideIndex = ref(0)
-let accumulatedWheelDelta = 0
-let wheelUnlockTimer: ReturnType<typeof setTimeout> | undefined
-let wheelLocked = false
 
 const sections = [
   {
@@ -99,31 +96,6 @@ function goToNext(index: number) {
   goTo(index === sections.length - 1 ? 0 : index + 1)
 }
 
-function handleWheel(event: WheelEvent) {
-  if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
-
-  event.preventDefault()
-  if (wheelLocked) return
-
-  accumulatedWheelDelta += event.deltaY
-  if (Math.abs(accumulatedWheelDelta) < 36) return
-
-  const direction = accumulatedWheelDelta > 0 ? 1 : -1
-  const nextIndex = Math.min(
-    sections.length - 1,
-    Math.max(0, activeIndex.value + direction),
-  )
-  accumulatedWheelDelta = 0
-
-  if (nextIndex === activeIndex.value) return
-
-  wheelLocked = true
-  goTo(nextIndex)
-  wheelUnlockTimer = setTimeout(() => {
-    wheelLocked = false
-  }, 720)
-}
-
 function handleCarouselKeydown(event: KeyboardEvent) {
   if (
     ['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(
@@ -133,10 +105,6 @@ function handleCarouselKeydown(event: KeyboardEvent) {
     event.stopPropagation()
   }
 }
-
-onBeforeUnmount(() => {
-  if (wheelUnlockTimer) clearTimeout(wheelUnlockTimer)
-})
 </script>
 
 <template>
@@ -161,7 +129,6 @@ onBeforeUnmount(() => {
       :buffer="1"
       item-key="id"
       aria-label="Full-page product story"
-      @wheel="handleWheel"
     >
       <template #default="{ item, index, active }">
         <article

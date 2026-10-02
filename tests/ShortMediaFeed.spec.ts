@@ -380,4 +380,110 @@ describe('ShortMediaFeed', () => {
     wrapper.unmount()
     warn.mockRestore()
   })
+
+  it('navigates between items via wheel events on the viewport', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(TestShortMediaFeed, {
+      props: {
+        items: items.slice(0, 5),
+        height: 600,
+        itemKey: 'id',
+      },
+    })
+    const viewport = wrapper.get('.vue-short-media-feed')
+    const scrollTo = vi.fn()
+    viewport.element.scrollTo = scrollTo
+    const preventDefault = vi.fn()
+    const triggerWheel = (init: WheelEventInit) =>
+      viewport.trigger('wheel', {
+        ...init,
+        preventDefault,
+      } as unknown as WheelEvent)
+
+    triggerWheel({ deltaY: 80 })
+    expect(preventDefault).toHaveBeenCalled()
+    expect(wrapper.emitted('update:activeIndex')?.at(-1)).toEqual([1])
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      top: 600,
+      behavior: 'smooth',
+    })
+
+    triggerWheel({ deltaY: 60 })
+    expect(wrapper.emitted('update:activeIndex')).toHaveLength(1)
+
+    vi.advanceTimersByTime(800)
+    triggerWheel({ deltaY: 80 })
+    expect(wrapper.emitted('update:activeIndex')?.at(-1)).toEqual([2])
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      top: 1200,
+      behavior: 'smooth',
+    })
+
+    vi.advanceTimersByTime(800)
+    triggerWheel({ deltaY: -120 })
+    expect(wrapper.emitted('update:activeIndex')?.at(-1)).toEqual([1])
+    vi.useRealTimers()
+    wrapper.unmount()
+  })
+
+  it('ignores wheel gestures that look like horizontal swipes', async () => {
+    const wrapper = mount(TestShortMediaFeed, {
+      props: {
+        items: items.slice(0, 5),
+        height: 600,
+        itemKey: 'id',
+      },
+    })
+    const viewport = wrapper.get('.vue-short-media-feed')
+    const scrollTo = vi.fn()
+    viewport.element.scrollTo = scrollTo
+    const preventDefault = vi.fn()
+
+    viewport.trigger('wheel', {
+      deltaY: 30,
+      deltaX: 120,
+      preventDefault,
+    } as unknown as WheelEvent)
+
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:activeIndex')).toBeUndefined()
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('resets the wheel accumulator when the direction changes mid-gesture', async () => {
+    const wrapper = mount(TestShortMediaFeed, {
+      props: {
+        items: items.slice(0, 5),
+        height: 600,
+        itemKey: 'id',
+      },
+    })
+    const viewport = wrapper.get('.vue-short-media-feed')
+    const scrollTo = vi.fn()
+    viewport.element.scrollTo = scrollTo
+    const preventDefault = () => undefined
+    const triggerWheel = (init: WheelEventInit) =>
+      viewport.trigger('wheel', {
+        ...init,
+        preventDefault,
+      } as unknown as WheelEvent)
+
+    // Two small upward deltas accumulate but stay under the threshold.
+    triggerWheel({ deltaY: 15 })
+    triggerWheel({ deltaY: 15 })
+    expect(wrapper.emitted('update:activeIndex')).toBeUndefined()
+
+    // A downward delta cancels the prior accumulator before adding itself.
+    triggerWheel({ deltaY: -10 })
+    expect(wrapper.emitted('update:activeIndex')).toBeUndefined()
+
+    // Subsequent downward deltas must accumulate from zero.
+    triggerWheel({ deltaY: 30 })
+    triggerWheel({ deltaY: 30 })
+    expect(wrapper.emitted('update:activeIndex')?.at(-1)).toEqual([1])
+
+    wrapper.unmount()
+  })
 })

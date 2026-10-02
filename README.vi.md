@@ -720,6 +720,10 @@ Các phím sau hoạt động khi viewport có focus:
 | `Home` | Chuyển tới vị trí đầu. |
 | `End` | Chuyển tới item cuối. |
 
+Viewport còn chuyển cả input bánh xe chuột thành chuyển slide. Handler wheel đã
+bật sẵn trong component, parent không phải làm gì thêm. Còn touch để trackpad
+snap gốc của trình duyệt xử lý.
+
 Với feed không giới hạn, hãy tải theo trang bằng `load-more` và chỉ giữ một cửa
 sổ dữ liệu hợp lý ở component cha. Virtualization giới hạn DOM và media element
 đang mount, nhưng không xóa object khỏi `items`.

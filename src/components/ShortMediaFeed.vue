@@ -56,11 +56,17 @@ defineSlots<{
   empty?(): unknown
 }>()
 
+const WHEEL_NAVIGATION_THRESHOLD = 36
+const WHEEL_LOCK_MS = 700
+
 const viewport = ref<HTMLElement>()
 const measuredHeight = ref(0)
 const currentIndex = ref(normalizeIndex(props.activeIndex))
 let resizeObserver: ResizeObserver | undefined
 let lastLoadMoreItemCount = -1
+let accumulatedWheelDelta = 0
+let wheelLocked = false
+let wheelUnlockTimer: ReturnType<typeof setTimeout> | undefined
 const warnIfZeroHeight = createZeroHeightWarning('ShortMediaFeed')
 const { getItemKey } = useItemKey<T>({
   componentName: 'ShortMediaFeed',
@@ -205,6 +211,42 @@ function handleKeydown(event: KeyboardEvent) {
   scrollToIndex(nextIndex, { behavior: 'smooth' })
 }
 
+function normalizedWheelDeltaY(event: WheelEvent): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * 16
+  }
+
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * (viewportHeight.value || 1)
+  }
+
+  return event.deltaY
+}
+
+function handleWheel(event: WheelEvent) {
+  if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+  if (props.items.length === 0 || viewportHeight.value <= 0) return
+
+  event.preventDefault()
+  if (wheelLocked) return
+
+  const deltaY = normalizedWheelDeltaY(event)
+  if (deltaY * accumulatedWheelDelta < 0) accumulatedWheelDelta = 0
+  accumulatedWheelDelta += deltaY
+  if (Math.abs(accumulatedWheelDelta) < WHEEL_NAVIGATION_THRESHOLD) return
+
+  const direction = accumulatedWheelDelta > 0 ? 1 : -1
+  accumulatedWheelDelta = 0
+  const nextIndex = currentIndex.value + direction
+  if (nextIndex < 0 || nextIndex >= props.items.length) return
+
+  wheelLocked = true
+  scrollToIndex(nextIndex, { behavior: 'smooth' })
+  wheelUnlockTimer = setTimeout(() => {
+    wheelLocked = false
+  }, WHEEL_LOCK_MS)
+}
+
 function updateMeasuredHeight() {
   const nextHeight = viewport.value?.clientHeight ?? 0
   warnIfZeroHeight(viewport.value, props.height)
@@ -280,6 +322,11 @@ onBeforeUnmount(() => {
     resizeObserver.disconnect()
     resizeObserver = undefined
   }
+
+  if (wheelUnlockTimer) {
+    clearTimeout(wheelUnlockTimer)
+    wheelUnlockTimer = undefined
+  }
 })
 
 defineExpose<ShortMediaFeedExpose>({
@@ -297,6 +344,7 @@ defineExpose<ShortMediaFeedExpose>({
     :aria-label="ariaLabel"
     tabindex="0"
     @scroll.passive="handleScroll"
+    @wheel="handleWheel"
     @keydown="handleKeydown"
   >
     <template v-if="items.length">
