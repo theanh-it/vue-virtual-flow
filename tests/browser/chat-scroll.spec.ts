@@ -56,12 +56,15 @@ async function scrollToIndex(chat: Locator, index: number, align: 'start' | 'cen
 
 for (const touching of [false, true]) {
   test(`prepend preserves the anchor and immediately extends upward scrolling (touch ${touching})`, async ({ page }) => {
+    await page.clock.install()
     const chat = await openChat(page)
+    // Hold the demo's one-second load until the pre-prepend geometry is captured.
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000)
     await chat.evaluate((element) => {
       element.scrollTop = -(element.scrollHeight - element.clientHeight) + 60
     })
     await expect(chat.getByRole('status')).toBeAttached()
-    await settleLayout(page)
+    await page.clock.runFor(100)
     expect(await chat.getByRole('status').evaluate((element) => {
       const viewport = element.closest('.vue-chat-virtual-scroll')!
       return Math.abs(element.getBoundingClientRect().top - viewport.getBoundingClientRect().top - viewport.clientTop)
@@ -74,6 +77,8 @@ for (const touching of [false, true]) {
     const oldMinimum = await chat.evaluate((element) => element.clientHeight - element.scrollHeight)
     if (touching) await dispatchTouch(chat, 'touchstart')
 
+    await page.clock.runFor(1_000)
+    await page.clock.resume()
     await expect(chat.locator(`[aria-posinset="${previousPosition + 20}"]`)).toHaveAttribute('aria-setsize', '40')
     await settleLayout(page)
     expect(await anchor.evaluate((element) => element.isConnected)).toBe(true)
