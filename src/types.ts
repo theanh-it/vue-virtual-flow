@@ -76,7 +76,11 @@ export interface WindowGirdVirtualScrollProps<T> {
 
 export interface ChatVirtualScrollProps<T> {
   items: readonly T[]
+  /** Increment after mutating/reordering the same array instance in place. */
+  itemsVersion?: PropertyKey
   estimatedItemSize?: number
+  /** Optional per-message estimate used before the message is measured. */
+  estimateItemSize?: (item: T, index: number) => number
   height?: number | string
   overscan?: number
   /** Render budget including overscan; always keeps the viewport filled. */
@@ -89,6 +93,22 @@ export interface ChatVirtualScrollProps<T> {
   hasOlder?: boolean
   loadingOlder?: boolean
   loadOlderThreshold?: number
+  /** Idle delay used when the browser does not provide a reliable scrollend event. */
+  scrollEndDelay?: number
+  /** Measure newly mounted messages synchronously before paint. */
+  syncMeasurement?: boolean
+  /** Message keys that must remain mounted outside the visible range. */
+  pinnedKeys?: readonly PropertyKey[]
+  maxPinnedItems?: number
+  /** Retain the message containing keyboard focus while it is off-screen. */
+  keepFocusedItem?: boolean
+  showNewItemsIndicator?: boolean
+  /** Localizes the built-in new-message control. */
+  newItemsLabel?: (count: number) => string
+  /** Return true for appended items that should always move the conversation to the bottom. */
+  forceStickToBottom?: (item: T, index: number) => boolean
+  /** Enable layout/paint containment. Disable when non-teleported overlays may escape. */
+  contain?: boolean
 }
 
 export interface ShortMediaFeedProps<T> {
@@ -177,6 +197,16 @@ export interface VirtualScrollExpose {
 
 export interface ChatVirtualScrollExpose extends VirtualScrollExpose {
   readonly isAtBottom: boolean
+  readonly isScrolling: boolean
+  readonly newItemsCount: number
+  clearNewItems: () => void
+  /** Reconcile keys and measurements after an in-place items mutation. */
+  refresh: () => void
+  getScrollPosition: () => number
+  scrollToKey: (
+    key: PropertyKey,
+    options?: ScrollToOptions & { align?: ScrollAlignment },
+  ) => void
   scrollToBottom: (behavior?: ScrollBehavior) => void
 }
 

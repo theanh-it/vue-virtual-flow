@@ -107,6 +107,33 @@ for (const touching of [false, true]) {
   })
 }
 
+test('new-message control stays inside the chat viewport and returns to the bottom', async ({ page }) => {
+  const chat = await openChat(page)
+  await chat.evaluate((element) => { element.scrollTop = -1_000 })
+  await settleLayout(page)
+  await page.getByRole('button', { name: 'New message' }).click()
+
+  const indicator = page.locator('.vue-chat-virtual-scroll__new-items')
+  await expect(indicator).toBeVisible()
+  const geometry = await indicator.evaluate((element) => {
+    const viewport = element.parentElement!.querySelector<HTMLElement>('.vue-chat-virtual-scroll')!
+    const control = element.getBoundingClientRect()
+    const frame = viewport.getBoundingClientRect()
+    return {
+      top: control.top,
+      bottom: control.bottom,
+      frameTop: frame.top,
+      frameBottom: frame.bottom,
+    }
+  })
+  expect(geometry.top).toBeGreaterThanOrEqual(geometry.frameTop)
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.frameBottom)
+
+  await indicator.getByRole('button').click()
+  await expect.poll(() => chat.evaluate((element) => element.scrollTop)).toBeGreaterThan(-2)
+  await expect(indicator).toHaveCount(0)
+})
+
 for (const [height, nearBottom] of [[300, false], [60, false], [60, true]] as const) {
   test(`resize above the viewport to ${height}px never rebases native scrolling (near bottom ${nearBottom})`, async ({ page }) => {
     const chat = await openChat(page)

@@ -551,6 +551,9 @@ async function loadOlder() {
     </template>
 
     <template #loadingOlder>Loading older messages…</template>
+    <template #newItems="{ count, scrollToBottom }">
+      <button @click="scrollToBottom('smooth')">{{ count }} new</button>
+    </template>
     <template #empty>No messages.</template>
   </ChatVirtualScroll>
 
@@ -563,12 +566,19 @@ async function loadOlder() {
 Prepend older data to the same keyed collection. The scroll container is anchored
 at the bottom, so adding or measuring older messages above the reader does not
 need a native scroll correction. Previously unseen messages are measured before
-paint, and cached height updates use an incremental size index.
+paint, and cached height updates use an incremental keyed tree. Normal append,
+prepend, measurement, offset and key lookups are `O(log n)` per changed message;
+arbitrary replacement, removal or reorder falls back to rebuilding the index.
+Replace the `items` array for arbitrary edits. If application constraints require
+mutating the same array instance, increment `itemsVersion` (or call `refresh()`)
+after a same-length removal/reorder so the component can reconcile without an
+always-on `O(n)` deep watcher.
 
-Use the exposed methods and the `scroll` event for positions measured from the
-top. The internal DOM scroller uses negative `scrollTop` values (zero at the
-bottom); code that directly reads or writes that DOM property must account for
-this. Message DOM order remains oldest to newest.
+Use the exposed methods, `getScrollPosition()`, and the `scroll` event for
+positive positions measured from the top. The internal DOM scroller uses
+negative `scrollTop` values (zero at the bottom) to preserve native momentum
+while history is prepended; consumers should not read or write that native
+property directly. Message DOM order remains oldest to newest.
 
 For smooth media conversations, reserve image/video dimensions with `width`,
 `height`, or `aspect-ratio`, use an estimate close to your message heights, and
@@ -581,11 +591,13 @@ virtualization cannot hide network latency once that boundary is reached.
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `items` | `readonly T[]` | required | Messages ordered from oldest to newest. |
+| `itemsVersion` | `PropertyKey` | unset | Increment after an arbitrary in-place mutation that keeps the same array reference/length. Immutable array replacement does not need it. |
 | `estimatedItemSize` | `number` | `48` | Initial average message height in pixels. |
+| `estimateItemSize` | `(item, index) => number` | unset | Per-message estimate for cold rows, useful when text and media have very different heights. |
 | `height` | `number \| string` | `400` | Viewport height. A number is pixels; `"fill"` maps to `100%`. |
 | `overscan` | `number` | `5` | Extra messages mounted before and after the visible range. |
 | `size` | `number` | unset | Optional total render budget including overscan, e.g. `:size="12"` for mobile. Trims overscan first; always renders enough messages to fill the viewport, even if this exceeds `size`. Does not add messages beyond `overscan`. Positive values are floored (minimum 1); non-positive or non-finite values disable the budget. |
-| `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key`, or index | Stable identity; especially important when prepending. |
+| `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key`, or item identity | Stable unique identity; especially important when prepending. Duplicate keys fail fast instead of corrupting anchors. |
 | `ariaLabel` | `string` | `"Chat messages"` | Accessible label for the live log. |
 | `stickToBottom` | `boolean` | `true` | Follows appended messages while currently near the bottom. |
 | `bottomThreshold` | `number` | `80` | Distance still considered “at bottom”, in pixels. |
@@ -593,6 +605,19 @@ virtualization cannot hide network latency once that boundary is reached.
 | `hasOlder` | `boolean` | `false` | Indicates that older history is available. |
 | `loadingOlder` | `boolean` | `false` | Prevents duplicate requests and shows the top indicator. |
 | `loadOlderThreshold` | `number` | `120` | Distance from the top that triggers `load-older`, in pixels. |
+| `scrollEndDelay` | `number` | `150` | Idle fallback in milliseconds for browsers without reliable `scrollend`. |
+| `syncMeasurement` | `boolean` | `true` | Measure new rows before paint. Set false to avoid synchronous layout reads and rely on `ResizeObserver`. |
+| `pinnedKeys` | `readonly PropertyKey[]` | `[]` | Messages kept mounted outside the visible range to preserve local state. |
+| `maxPinnedItems` | `number` | `20` | Maximum number of explicit pinned keys retained. |
+| `keepFocusedItem` | `boolean` | `true` | Keeps the message containing keyboard focus mounted while off-screen. |
+| `showNewItemsIndicator` | `boolean` | `true` | Shows the built-in new-message button while reading history. |
+| `newItemsLabel` | `(count) => string` | English label | Localizes the built-in new-message button without replacing the slot. |
+| `forceStickToBottom` | `(item, index) => boolean` | unset | Force-follows selected appended messages, commonly messages sent by the local user. |
+| `contain` | `boolean` | `true` | Enables layout/paint containment. Disable for overlays that intentionally escape without `Teleport`. |
+
+Pinned and keyboard-focused messages are intentionally additional to the
+`size` render budget. Keep `pinnedKeys` small; the `maxPinnedItems` guard does
+not cap the currently focused message.
 
 #### Slots
 
@@ -601,6 +626,7 @@ virtualization cannot hide network latency once that boundary is reached.
 | `default` | `{ item, index }` | Renders each mounted message. |
 | `empty` | none | Rendered when there are no messages. |
 | `loadingOlder` | none | Sticky top status; defaults to “Loading older messages…”. |
+| `newItems` | `{ count, scrollToBottom }` | Customizes the floating new-message control. |
 
 #### Events
 
@@ -609,14 +635,23 @@ virtualization cannot hide network latency once that boundary is reached.
 | `scroll` | `{ scrollTop, startIndex, endIndex }` | On container scroll. | `@scroll="onScroll"` |
 | `load-older` | none | Near the top when `hasOlder` is true and `loadingOlder` is false. | `@load-older="loadOlder"` |
 | `bottom-change` | `boolean` | When the viewport enters or leaves the bottom threshold. | `@bottom-change="onBottomChange"` |
+| `scrolling-change` | `boolean` | When user-driven scrolling starts or settles. | `@scrolling-change="onScrollingChange"` |
+| `new-items-change` | `number` | When the number of appended messages unseen at the bottom changes. | `@new-items-change="onNewItemsChange"` |
+| `visible-change` | `{ scrollTop, startIndex, endIndex }` | When the actual visible range changes, excluding overscan; useful for read tracking. | `@visible-change="markVisibleAsRead"` |
 
 #### Exposed API
 
 | Method / state | Description | Template example |
 | --- | --- | --- |
 | `isAtBottom` | Readonly boolean indicating whether the user is near the bottom. | `chat?.isAtBottom` |
+| `isScrolling` | Readonly boolean indicating an active user scroll gesture. | `chat?.isScrolling` |
+| `newItemsCount` | Number of appended messages received while reading history. | `chat?.newItemsCount` |
+| `clearNewItems()` | Clears the new-message count without moving the viewport. | `chat?.clearNewItems()` |
+| `refresh()` | Reconciles keys and measurements after mutating the same `items` array in place. | `chat?.refresh()` |
+| `getScrollPosition()` | Returns the positive logical pixel offset from the list start. | `chat?.getScrollPosition()` |
 | `scrollTo(position, options?)` | Scrolls to a pixel offset. | `chat?.scrollTo(200, { behavior: 'smooth' })` |
 | `scrollToIndex(index, options?)` | Scrolls to a zero-based message index. | `chat?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToKey(key, options?)` | Scrolls to a message by its stable key. | `chat?.scrollToKey(messageId, { align: 'center' })` |
 | `scrollToTop(behavior?)` | Scrolls to the oldest loaded message. | `chat?.scrollToTop()` |
 | `scrollToBottom(behavior?)` | Scrolls to the newest loaded message. | `chat?.scrollToBottom('smooth')` |
 
@@ -1261,6 +1296,7 @@ import type {
 | `bun run test:browser` | Run Playwright browser tests. |
 | `bun run check` | Run all checks: unit tests, build, consumer types, package lint, and browser tests. |
 | `npm pack --dry-run` | Inspect the files that will be published. |
+| `npm publish --access public` | Publish the already-versioned public package after the release commit is ready. |
 | `prepublishOnly` | Automatically runs `bun run check` before publishing. |
 
 ```bash
@@ -1272,8 +1308,8 @@ bun run check
 
 The playground includes fixed-height, variable-height, window, chat,
 load-more, short-media, and carousel demos. Before publishing, also run
-`npm pack --dry-run`. GitHub releases are published through
-`.github/workflows/publish.yml`.
+`npm pack --dry-run`. Commit the release, publish it with
+`npm publish --access public`, then create and push the matching Git tag.
 
 ## Contributing
 

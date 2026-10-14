@@ -170,6 +170,19 @@ describe('ChatVirtualScroll', () => {
     wrapper.unmount()
   })
 
+  it('fails fast for duplicate message keys instead of corrupting anchors', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(() => mount(TestChatVirtualScroll, {
+      props: {
+        items: [{ id: 1, text: 'one' }, { id: 1, text: 'duplicate' }],
+        itemKey: 'id',
+      },
+    })).toThrow('Duplicate item key `1`')
+
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('Duplicate item key `1`'))
+    warning.mockRestore()
+  })
+
   it('fills the viewport after measured message heights shrink', async () => {
     const wrapper = mount(TestChatVirtualScroll, {
       attachTo: document.body,
@@ -249,6 +262,253 @@ describe('ChatVirtualScroll', () => {
 
     expect((viewport as HTMLElement).scrollTop).toBe(0)
     expect(wrapper.vm.isAtBottom).toBe(true)
+  })
+
+  it('supports per-message estimates for cold heterogeneous content', async () => {
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: {
+        items: messages.slice(0, 3),
+        estimatedItemSize: 40,
+        estimateItemSize: (_item: Message, index: number) => (index + 1) * 10,
+        height: 20,
+        itemKey: 'id',
+        syncMeasurement: false,
+      },
+    })
+    await nextTick()
+
+    expect(wrapper.get('.vue-chat-virtual-scroll__spacer').attributes('style'))
+      .toContain('height: 60px')
+    wrapper.unmount()
+  })
+
+  it('indexes common append and prepend mutations incrementally', async () => {
+    const estimate = vi.fn(() => 40)
+    const current = createMessages(10, 100)
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: {
+        items: current,
+        estimateItemSize: estimate,
+        height: 100,
+        itemKey: 'id',
+        syncMeasurement: false,
+      },
+    })
+    expect(estimate).toHaveBeenCalledTimes(100)
+
+    estimate.mockClear()
+    const appended = [...current, ...createMessages(110, 2)]
+    await wrapper.setProps({ items: appended })
+    expect(estimate).toHaveBeenCalledTimes(2)
+
+    estimate.mockClear()
+    await wrapper.setProps({ items: [...createMessages(8, 2), ...appended] })
+    expect(estimate).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('can rely on ResizeObserver without forcing a synchronous layout read', async () => {
+    const measurement = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: {
+        items: messages.slice(0, 3),
+        estimatedItemSize: 40,
+        height: 100,
+        itemKey: 'id',
+        syncMeasurement: false,
+      },
+    })
+    await nextTick()
+
+    expect(measurement).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps pinned and keyboard-focused messages mounted outside the render range', async () => {
+    const wrapper = mount(TestChatVirtualScroll, {
+      attachTo: document.body,
+      props: {
+        items: messages,
+        estimatedItemSize: 40,
+        height: 100,
+        size: 4,
+        itemKey: 'id',
+        initialScroll: 'top',
+        pinnedKeys: [90],
+      },
+      slots: {
+        default: '<input class="message-input" />',
+      },
+    })
+    const viewport = wrapper.get('.vue-chat-virtual-scroll')
+    const focused = wrapper.get('[aria-posinset="1"] .message-input').element as HTMLInputElement
+    focused.focus()
+    await viewport.trigger('focusin')
+    viewport.element.scrollTop = -1_900
+    await viewport.trigger('scroll')
+
+    expect(wrapper.find('[aria-posinset="1"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-posinset="91"]').exists()).toBe(true)
+    expect(document.activeElement).toBe(focused)
+    wrapper.unmount()
+  })
+
+  it('exposes logical scrolling by key without leaking the negative native offset', async () => {
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: {
+        items: messages,
+        estimatedItemSize: 40,
+        height: 100,
+        itemKey: 'id',
+        initialScroll: 'top',
+      },
+    })
+    const viewport = wrapper.get('.vue-chat-virtual-scroll')
+    Object.defineProperty(viewport.element, 'clientHeight', { configurable: true, value: 100 })
+    const scrollTo = vi.fn()
+    viewport.element.scrollTo = scrollTo
+
+    wrapper.vm.scrollToKey(50, { align: 'start' })
+    expect(scrollTo).toHaveBeenCalledWith({ top: -1_900, behavior: 'auto' })
+    viewport.element.scrollTop = -1_900
+    expect(wrapper.vm.getScrollPosition()).toBe(2_000)
+    wrapper.unmount()
+  })
+
+  it('counts appended messages while reading history and clears at the bottom', async () => {
+    const { wrapper, viewport } = mountMeasuredChat({ showNewItemsIndicator: true })
+    await nextTick()
+    viewport.element.scrollTop = -2_000
+    await viewport.trigger('scroll')
+
+    await wrapper.setProps({ items: [...messages, ...createMessages(100, 2)] })
+    await nextTick()
+    expect(wrapper.vm.newItemsCount).toBe(2)
+    expect(wrapper.get('.vue-chat-virtual-scroll__new-items').text()).toContain('2 new messages')
+    expect(wrapper.emitted('newItemsChange')?.at(-1)).toEqual([2])
+
+    viewport.element.scrollTop = 0
+    await viewport.trigger('scroll')
+    expect(wrapper.vm.newItemsCount).toBe(0)
+    expect(wrapper.find('.vue-chat-virtual-scroll__new-items').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('localizes the built-in new-message label', async () => {
+    const { wrapper, viewport } = mountMeasuredChat({
+      newItemsLabel: (count: number) => `${count} tin nhắn mới`,
+    })
+    await nextTick()
+    viewport.element.scrollTop = -2_000
+    await viewport.trigger('scroll')
+    await wrapper.setProps({ items: [...messages, ...createMessages(100, 2)] })
+
+    expect(wrapper.get('.vue-chat-virtual-scroll__new-items').text()).toBe('2 tin nhắn mới')
+    wrapper.unmount()
+  })
+
+  it('reconciles an arbitrary in-place reorder through itemsVersion or refresh()', async () => {
+    const items = createMessages(0, 12)
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: {
+        items,
+        itemsVersion: 0,
+        itemKey: 'id',
+        estimatedItemSize: 40,
+        height: 480,
+        overscan: 0,
+        initialScroll: 'top',
+      },
+      slots: {
+        default: '<template #default="{ item }"><span class="message-id">{{ item.id }}</span></template>',
+      },
+    })
+    const renderedIds = () => wrapper.findAll('.message-id').map((row) => Number(row.text()))
+
+    ;[items[2], items[3]] = [items[3], items[2]]
+    await wrapper.setProps({ items, itemsVersion: 1 })
+    expect(renderedIds().slice(0, 5)).toEqual([0, 1, 3, 2, 4])
+
+    ;[items[7], items[8]] = [items[8], items[7]]
+    wrapper.vm.refresh()
+    await nextTick()
+    expect(renderedIds().slice(6, 10)).toEqual([6, 8, 7, 9])
+    wrapper.unmount()
+  })
+
+  it('forces a rebuild when an invalidated reorder and append happen together', async () => {
+    const items = createMessages(0, 12)
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: {
+        items,
+        itemsVersion: 0,
+        itemKey: 'id',
+        estimatedItemSize: 40,
+        height: 80,
+        initialScroll: 'top',
+      },
+    })
+    const viewport = wrapper.get('.vue-chat-virtual-scroll')
+    const scrollTo = vi.fn()
+    viewport.element.scrollTo = scrollTo
+
+    ;[items[2], items[3]] = [items[3], items[2]]
+    items.push({ id: 12, text: 'Message 12' })
+    await wrapper.setProps({ items, itemsVersion: 1 })
+    wrapper.vm.scrollToKey(3)
+
+    // Key 3 moved to index 2: logical top 80 in a 520px list/80px viewport.
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: -360, behavior: 'auto' })
+    wrapper.unmount()
+  })
+
+  it('can force-follow selected appended messages such as the local sender', async () => {
+    const { wrapper, viewport } = mountMeasuredChat({
+      forceStickToBottom: (item: Message) => item.id === 100,
+    })
+    await nextTick()
+    viewport.element.scrollTop = -2_000
+    await viewport.trigger('scroll')
+
+    await wrapper.setProps({ items: [...messages, ...createMessages(100, 1)] })
+    await nextTick()
+    await nextTick()
+
+    expect(viewport.element.scrollTop).toBe(0)
+    expect(wrapper.vm.newItemsCount).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('allows paint containment to be disabled for non-teleported overlays', async () => {
+    const wrapper = mount(TestChatVirtualScroll, {
+      props: { items: messages, contain: false },
+    })
+    expect(wrapper.get('.vue-chat-virtual-scroll').classes())
+      .not.toContain('vue-chat-virtual-scroll--contained')
+    await wrapper.setProps({ contain: true })
+    expect(wrapper.get('.vue-chat-virtual-scroll').classes())
+      .toContain('vue-chat-virtual-scroll--contained')
+    wrapper.unmount()
+  })
+
+  it('reports the actual visible range separately from overscan for read tracking', async () => {
+    const { wrapper, viewport } = mountMeasuredChat({ overscan: 5 })
+    await nextTick()
+    expect(wrapper.emitted('visibleChange')?.at(-1)).toEqual([{
+      scrollTop: 0,
+      startIndex: 0,
+      endIndex: 3,
+    }])
+
+    viewport.element.scrollTop = -3_700
+    await viewport.trigger('scroll')
+    await nextTick()
+    expect(wrapper.emitted('visibleChange')?.at(-1)).toEqual([{
+      scrollTop: 200,
+      startIndex: 5,
+      endIndex: 8,
+    }])
+    wrapper.unmount()
   })
 
   it('restores a pixel scroll position', () => {
@@ -461,6 +721,76 @@ describe('ChatVirtualScroll', () => {
     expect(viewport.element.scrollTop).toBe(-3680 - 2 * (height - 40))
     expect(screenTop(7)).toBe(20)
     expect(row(7).element).toBe(anchor)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['wheel', () => ({})],
+    ['keyboard', () => ({ key: 'PageUp' })],
+  ])('defers native corrections during active %s scrolling', async (eventName, eventInit) => {
+    vi.useFakeTimers()
+    const { wrapper, viewport, resize } = mountMeasuredChat()
+    await nextTick()
+    viewport.element.scrollTop = -3660
+    await viewport.trigger('scroll')
+    const writes = trackScrollWrites(viewport.element)
+
+    await viewport.trigger(eventName === 'wheel' ? 'wheel' : 'keydown', eventInit())
+    resize(12, 80)
+    await nextTick()
+
+    expect(writes).not.toHaveBeenCalled()
+    expect(wrapper.get('.vue-chat-virtual-scroll__spacer').attributes('style'))
+      .toContain('height: 4000px')
+
+    await vi.advanceTimersByTimeAsync(149)
+    expect(writes).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(viewport.element.scrollTop).toBe(-3700)
+    wrapper.unmount()
+  })
+
+  it('exposes scrolling state, pauses live announcements, and honors scrollEndDelay', async () => {
+    vi.useFakeTimers()
+    const { wrapper, viewport } = mountMeasuredChat({
+      scrollEndDelay: 75,
+      initialScroll: 'bottom',
+    })
+    await nextTick()
+
+    await viewport.trigger('wheel')
+    expect(wrapper.vm.isScrolling).toBe(true)
+    expect(viewport.attributes('aria-live')).toBe('off')
+    expect(wrapper.emitted('scrollingChange')?.at(-1)).toEqual([true])
+
+    await vi.advanceTimersByTimeAsync(74)
+    expect(wrapper.vm.isScrolling).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.vm.isScrolling).toBe(false)
+    expect(viewport.attributes('aria-live')).toBe('polite')
+    expect(wrapper.emitted('scrollingChange')?.at(-1)).toEqual([false])
+    wrapper.unmount()
+  })
+
+  it('defers native corrections until a scrollbar drag is released', async () => {
+    vi.useFakeTimers()
+    const { wrapper, viewport, resize } = mountMeasuredChat()
+    await nextTick()
+    viewport.element.scrollTop = -3660
+    await viewport.trigger('scroll')
+    const writes = trackScrollWrites(viewport.element)
+
+    await viewport.trigger('pointerdown', { pointerType: 'mouse' })
+    resize(12, 80)
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(writes).not.toHaveBeenCalled()
+
+    window.dispatchEvent(new Event('pointerup'))
+    await vi.advanceTimersByTimeAsync(150)
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(viewport.element.scrollTop).toBe(-3700)
     wrapper.unmount()
   })
 

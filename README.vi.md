@@ -551,6 +551,9 @@ async function loadOlder() {
     </template>
 
     <template #loadingOlder>Đang tải tin nhắn cũ…</template>
+    <template #newItems="{ count, scrollToBottom }">
+      <button @click="scrollToBottom('smooth')">{{ count }} tin mới</button>
+    </template>
     <template #empty>Chưa có tin nhắn.</template>
   </ChatVirtualScroll>
 
@@ -563,12 +566,18 @@ async function loadOlder() {
 Hãy thêm dữ liệu cũ vào đầu cùng một collection có key ổn định. Vùng cuộn lấy
 đáy làm mốc nên việc thêm hoặc đo tin nhắn phía trên người đọc không cần sửa vị
 trí cuộn native. Tin nhắn xuất hiện lần đầu được đo trước khi vẽ; các thay đổi chiều cao
-được cập nhật riêng trong bảng chỉ mục.
+được cập nhật trong cây chỉ mục theo key. Append, prepend, đo chiều cao, tìm
+offset và key thông thường có độ phức tạp `O(log n)` cho mỗi tin thay đổi; thay
+thế, xóa hoặc sắp xếp tùy ý sẽ dựng lại index.
+Nên thay cả array `items` khi sửa dữ liệu tùy ý. Nếu ứng dụng bắt buộc mutate
+cùng một array, hãy tăng `itemsVersion` (hoặc gọi `refresh()`) sau thao tác xóa/
+sắp xếp không đổi độ dài. Cách này giữ được hiệu năng mà không cần deep watcher
+`O(n)` chạy sau mọi tin nhắn mới.
 
-Dùng các method qua ref và sự kiện `scroll` để thao tác với vị trí tính từ đầu
-danh sách. Phần tử cuộn DOM bên trong dùng `scrollTop` âm (bằng 0 ở đáy); code
-đọc hoặc ghi trực tiếp thuộc tính DOM này cần tính đến khác biệt đó. Thứ tự DOM
-của tin nhắn vẫn từ cũ đến mới.
+Dùng các method qua ref, `getScrollPosition()` và sự kiện `scroll` để thao tác
+với offset dương tính từ đầu danh sách. Phần tử DOM bên trong dùng `scrollTop`
+âm (bằng 0 ở đáy) nhằm giữ momentum native khi prepend; code sử dụng component
+không nên đọc hoặc ghi trực tiếp thuộc tính này. Thứ tự DOM vẫn từ cũ đến mới.
 
 Để chat có ảnh/video cuộn mượt, hãy dành sẵn kích thước bằng `width`, `height`
 hoặc `aspect-ratio`, đặt chiều cao ước lượng gần thực tế và tránh giới hạn `size`
@@ -581,11 +590,13 @@ kế tiếp trước khi người dùng chạm tin cũ nhất đã có; virtuali
 | Prop | Kiểu | Mặc định | Mô tả |
 | --- | --- | --- | --- |
 | `items` | `readonly T[]` | bắt buộc | Tin nhắn được sắp từ cũ nhất tới mới nhất. |
+| `itemsVersion` | `PropertyKey` | không đặt | Tăng giá trị sau mutation tại chỗ tùy ý không đổi reference/độ dài. Không cần dùng khi thay array theo kiểu immutable. |
 | `estimatedItemSize` | `number` | `48` | Chiều cao trung bình ban đầu của tin nhắn, tính bằng pixel. |
+| `estimateItemSize` | `(item, index) => number` | không đặt | Ước lượng riêng cho từng tin chưa đo, hữu ích khi text và media chênh lệch chiều cao lớn. |
 | `height` | `number \| string` | `400` | Chiều cao viewport. Số được hiểu là pixel; `"fill"` tương đương `100%`. |
 | `overscan` | `number` | `5` | Số tin nhắn mount thêm trước và sau vùng đang hiển thị. |
 | `size` | `number` | không đặt | Giới hạn tổng số tin nhắn render, bao gồm overscan, ví dụ `:size="12"` cho mobile. Giảm overscan trước; luôn render đủ vùng nhìn dù phải vượt `size`. Không tăng số tin nhắn vượt phạm vi `overscan`. Số dương được làm tròn xuống (tối thiểu 1); số không dương hoặc không hữu hạn sẽ tắt giới hạn. |
-| `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key` hoặc index | Định danh ổn định, đặc biệt quan trọng khi thêm vào đầu. |
+| `itemKey` | `keyof T \| (item, index) => PropertyKey` | `id`, `key` hoặc identity của item | Định danh ổn định và duy nhất, đặc biệt quan trọng khi thêm vào đầu. Key trùng sẽ báo lỗi ngay thay vì làm hỏng anchor. |
 | `ariaLabel` | `string` | `"Chat messages"` | Nhãn hỗ trợ khả năng tiếp cận cho live log. |
 | `stickToBottom` | `boolean` | `true` | Bám theo tin nhắn mới nếu hiện tại đang gần cuối. |
 | `bottomThreshold` | `number` | `80` | Khoảng cách vẫn được xem là “ở cuối”, tính bằng pixel. |
@@ -593,6 +604,18 @@ kế tiếp trước khi người dùng chạm tin cũ nhất đã có; virtuali
 | `hasOlder` | `boolean` | `false` | Cho biết vẫn còn lịch sử cũ. |
 | `loadingOlder` | `boolean` | `false` | Ngăn request trùng và hiển thị indicator phía trên. |
 | `loadOlderThreshold` | `number` | `120` | Khoảng cách tới đầu để emit `load-older`, tính bằng pixel. |
+| `scrollEndDelay` | `number` | `150` | Thời gian chờ fallback tính bằng ms khi trình duyệt không có `scrollend` ổn định. |
+| `syncMeasurement` | `boolean` | `true` | Đo hàng mới trước paint. Đặt false để tránh đọc layout đồng bộ và chỉ dùng `ResizeObserver`. |
+| `pinnedKeys` | `readonly PropertyKey[]` | `[]` | Các tin nhắn luôn được mount để giữ state cục bộ. |
+| `maxPinnedItems` | `number` | `20` | Số key pin tối đa được giữ lại. |
+| `keepFocusedItem` | `boolean` | `true` | Giữ DOM của tin nhắn đang chứa keyboard focus dù ra ngoài viewport. |
+| `showNewItemsIndicator` | `boolean` | `true` | Hiển thị nút tin nhắn mới khi người dùng đang đọc lịch sử. |
+| `newItemsLabel` | `(count) => string` | nhãn tiếng Anh | Bản địa hóa nút tin nhắn mới mặc định mà không cần thay slot. |
+| `forceStickToBottom` | `(item, index) => boolean` | không đặt | Luôn bám đáy với tin append được chọn, thường dùng cho tin do người dùng hiện tại gửi. |
+| `contain` | `boolean` | `true` | Bật containment layout/paint; tắt nếu overlay không dùng `Teleport` cần tràn ra ngoài. |
+
+Tin nhắn được pin và tin đang chứa keyboard focus được render thêm ngoài giới
+hạn `size`. Nên giữ `pinnedKeys` nhỏ; `maxPinnedItems` không giới hạn tin đang focus.
 
 #### Slots
 
@@ -601,6 +624,7 @@ kế tiếp trước khi người dùng chạm tin cũ nhất đã có; virtuali
 | `default` | `{ item, index }` | Render từng tin nhắn đang được mount. |
 | `empty` | không có | Render khi chưa có tin nhắn. |
 | `loadingOlder` | không có | Status sticky phía trên; mặc định “Loading older messages…”. |
+| `newItems` | `{ count, scrollToBottom }` | Tùy chỉnh nút tin nhắn mới nổi phía dưới. |
 
 #### Events
 
@@ -609,14 +633,23 @@ kế tiếp trước khi người dùng chạm tin cũ nhất đã có; virtuali
 | `scroll` | `{ scrollTop, startIndex, endIndex }` | Khi container cuộn. | `@scroll="onScroll"` |
 | `load-older` | không có | Gần đầu khi `hasOlder` là true và `loadingOlder` là false. | `@load-older="loadOlder"` |
 | `bottom-change` | `boolean` | Khi viewport đi vào hoặc rời ngưỡng ở cuối. | `@bottom-change="onBottomChange"` |
+| `scrolling-change` | `boolean` | Khi thao tác cuộn của người dùng bắt đầu hoặc dừng. | `@scrolling-change="onScrollingChange"` |
+| `new-items-change` | `number` | Khi số tin append chưa được xem ở đáy thay đổi. | `@new-items-change="onNewItemsChange"` |
+| `visible-change` | `{ scrollTop, startIndex, endIndex }` | Khi vùng thực sự nhìn thấy thay đổi, không tính overscan; dùng để theo dõi đã đọc. | `@visible-change="markVisibleAsRead"` |
 
 #### API qua ref
 
 | Method / trạng thái | Mô tả | Ví dụ trong template |
 | --- | --- | --- |
 | `isAtBottom` | Boolean readonly cho biết người dùng có đang gần cuối hay không. | `chat?.isAtBottom` |
+| `isScrolling` | Boolean readonly cho biết người dùng đang thực hiện thao tác cuộn. | `chat?.isScrolling` |
+| `newItemsCount` | Số tin append nhận được trong lúc đang đọc lịch sử. | `chat?.newItemsCount` |
+| `clearNewItems()` | Xóa bộ đếm tin mới mà không đổi vị trí cuộn. | `chat?.clearNewItems()` |
+| `refresh()` | Đồng bộ lại key và measurement sau khi mutate tại chỗ cùng một array `items`. | `chat?.refresh()` |
+| `getScrollPosition()` | Trả về offset pixel logic dương tính từ đầu danh sách. | `chat?.getScrollPosition()` |
 | `scrollTo(position, options?)` | Cuộn tới offset pixel. | `chat?.scrollTo(200, { behavior: 'smooth' })` |
 | `scrollToIndex(index, options?)` | Cuộn tới index tin nhắn bắt đầu từ 0. | `chat?.scrollToIndex(10, { behavior: 'smooth' })` |
+| `scrollToKey(key, options?)` | Cuộn tới tin nhắn theo key ổn định. | `chat?.scrollToKey(messageId, { align: 'center' })` |
 | `scrollToTop(behavior?)` | Cuộn tới tin nhắn cũ nhất đã tải. | `chat?.scrollToTop()` |
 | `scrollToBottom(behavior?)` | Cuộn tới tin nhắn mới nhất đã tải. | `chat?.scrollToBottom('smooth')` |
 
@@ -1255,6 +1288,7 @@ import type {
 | `bun run test:browser` | Chạy test trình duyệt bằng Playwright. |
 | `bun run check` | Chạy toàn bộ: unit test, build, type phía dùng package, lint package và test trình duyệt. |
 | `npm pack --dry-run` | Kiểm tra các file sẽ được publish. |
+| `npm publish --access public` | Publish package public đã được cập nhật version sau khi release commit sẵn sàng. |
 | `prepublishOnly` | Tự chạy `bun run check` trước khi publish. |
 
 ```bash
@@ -1266,8 +1300,8 @@ bun run check
 
 Playground có các demo riêng cho chiều cao cố định, chiều cao động, cuộn theo
 cửa sổ, chat, load-more, short-media và carousel. Trước khi publish, hãy chạy
-thêm `npm pack --dry-run`. GitHub Release được publish qua
-`.github/workflows/publish.yml`.
+thêm `npm pack --dry-run`. Sau đó commit release, chạy
+`npm publish --access public`, rồi tạo và push Git tag tương ứng.
 
 ## Đóng góp
 

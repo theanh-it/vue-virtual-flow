@@ -7,16 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-14
+
+### Added
+- **VirtualCarousel**: Add configurable mouse dragging, momentum, controlled snapping, intrinsic `autoWidth` slides, RTL support, continuous looping, bounded keep-alive caching, and pinned slide instances
+- **ChatVirtualScroll**: Add per-message size estimates, scroll activity state, visible-range events, key-based scrolling, logical position restoration, pinned/focused message retention, forced bottom-follow rules, and configurable synchronous measurement
+- **ChatVirtualScroll**: Add an accessible new-message counter with a customizable slot and localized built-in label
+- **ChatVirtualScroll**: Add `itemsVersion` and `refresh()` for explicitly reconciling arbitrary in-place mutations without an always-on deep watcher
+
 ### Fixed
 - **ChatVirtualScroll**: Anchor native scrolling at the bottom so prepended history is immediately reachable during touch scrolling, without rebasing the scroll position
 - **ChatVirtualScroll**: Preserve the reading position when messages below the viewport resize or new messages arrive during a gesture
+- **ChatVirtualScroll**: Keep the new-message control inside the viewport instead of scrolling it away with message content
+- **ChatVirtualScroll**: Defer measurement corrections during wheel, keyboard, touch, smooth-scroll, and scrollbar-drag activity so native momentum is not interrupted
+- **ChatVirtualScroll**: Use stable identity fallbacks instead of array indexes and reject duplicate keys before they can corrupt measurements or anchors
 
 ### Improved
-- Measure previously unseen chat messages before paint and update measured offsets in O(log n) instead of rebuilding the full history on every measurement batch
-- Cover cold variable-height scrolling, native Chromium touch input, and prepend/resize anchoring across Chromium, Firefox, and WebKit
+- **VirtualCarousel**: Extract autoplay, interaction, layout, and motion responsibilities and add cross-browser regression coverage for dragging, looping, RTL, auto-width, and cached state
+- **ChatVirtualScroll**: Measure previously unseen messages before paint and update append, prepend, measurement, offset, and key operations through an incremental keyed index
+- **ChatVirtualScroll**: Remove the duplicate measured-height map and split input activity from layout/measurement logic
+- Cover cold variable-height scrolling, native Chromium touch input, new-message overlay geometry, and prepend/resize anchoring across Chromium, Firefox, and WebKit
 
 ### Changed
 - The chat's internal DOM `scrollTop` is now negative above the bottom. Exposed scrolling methods and `scroll` event offsets remain measured from the top; use those APIs instead of accessing the native offset directly
+- **ChatVirtualScroll**: Add a `.vue-chat-virtual-scroll__root` layout wrapper while keeping inherited attributes on the scroll viewport
+- **ChatVirtualScroll**: Duplicate keys now fail fast; every message must have a unique stable key
 
 ## [0.0.7] - 2026-09-29
 

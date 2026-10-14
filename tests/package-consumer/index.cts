@@ -1,6 +1,7 @@
 import VueVirtualScroll, {
   VirtualScroll,
   VirtualCarousel,
+  type ChatVirtualScrollProps,
   type VirtualCarouselProps,
   WindowGirdVirtualScroll,
   type VirtualScrollProps,
@@ -30,5 +31,10 @@ const gridProps: WindowGirdVirtualScrollProps<Row> = {
   itemSize: 160,
   columns: 2,
 }
+const chatProps: ChatVirtualScrollProps<Row> = {
+  items: [{ id: 1 }],
+  pinnedKeys: [1],
+  syncMeasurement: false,
+}
 
-void [plugin, props, gridProps, carouselProps, VirtualCarousel, VirtualScroll, WindowGirdVirtualScroll]
+void [plugin, props, gridProps, chatProps, carouselProps, VirtualCarousel, VirtualScroll, WindowGirdVirtualScroll]

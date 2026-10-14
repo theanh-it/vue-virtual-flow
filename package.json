@@ -1,11 +1,12 @@
 {
   "name": "vue-virtual-flow",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Typed, accessible virtual lists, feeds and carousels for Vue 3.",
   "type": "module",
   "files": [
     "dist",
-    "README.vi.md"
+    "README.vi.md",
+    "CHANGELOG.md"
   ],
   "main": "./dist/vue-virtual-flow.cjs",
   "module": "./dist/vue-virtual-flow.js",

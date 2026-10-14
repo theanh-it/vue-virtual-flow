@@ -31,16 +31,30 @@
   overflow-anchor: none;
 }
 
+.vue-chat-virtual-scroll__root {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
 .vue-chat-virtual-scroll {
   display: flex;
   flex-direction: column-reverse;
   position: relative;
   width: 100%;
-  overflow: auto;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   box-sizing: border-box;
   overflow-anchor: none;
   overscroll-behavior: contain;
+  touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
+}
+
+.vue-chat-virtual-scroll--contained {
+  contain: layout paint;
 }
 
 .vue-short-media-feed {
@@ -261,6 +275,32 @@
   background: rgb(255 255 255 / 92%);
   border-radius: 999px;
   box-shadow: 0 2px 12px rgb(15 23 42 / 10%);
+}
+
+.vue-chat-virtual-scroll__new-items {
+  position: absolute;
+  right: 0;
+  bottom: 0.75rem;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.vue-chat-virtual-scroll__new-items button {
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  color: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: #2563eb;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 20%);
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .vue-virtual-scroll__loading,

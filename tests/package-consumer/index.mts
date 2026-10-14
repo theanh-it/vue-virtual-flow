@@ -1,5 +1,7 @@
 import VueVirtualScroll, {
   DynamicVirtualScroll,
+  type ChatVirtualScrollExpose,
+  type ChatVirtualScrollProps,
   VirtualList,
   VirtualScroll,
   VirtualCarousel,
@@ -42,6 +44,20 @@ const carouselProps: VirtualCarouselProps<Row> = {
 const simpleProps: VirtualListProps<Row> = {
   items: [{ id: 1, label: 'one' }],
 }
+const chatProps: ChatVirtualScrollProps<Row> = {
+  items: props.items,
+  itemsVersion: 1,
+  itemKey: 'id',
+  estimateItemSize: () => 48,
+  pinnedKeys: [1],
+  newItemsLabel: (count) => `${count} new`,
+  forceStickToBottom: (item) => item.id === 1,
+}
+const inspectChat = (chat: ChatVirtualScrollExpose) => {
+  chat.refresh()
+  chat.scrollToKey(1)
+  return [chat.getScrollPosition(), chat.newItemsCount, chat.isScrolling]
+}
 const restorePosition = (list: VirtualScrollExpose) => list.scrollTo(320)
 const gridProps: WindowGirdVirtualScrollProps<Row> = {
   items: [{ id: 1, label: 'one' }],
@@ -63,4 +79,6 @@ void [
   VirtualScroll,
   DynamicVirtualScroll,
   WindowGirdVirtualScroll,
+  chatProps,
+  inspectChat,
 ]
