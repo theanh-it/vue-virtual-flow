@@ -383,7 +383,7 @@ main {
   border: 0;
   border-radius: 1.35rem;
   box-shadow: 0 2rem 5rem rgb(34 48 24 / 18%);
-  touch-action: pan-x pan-y;
+  touch-action: pan-y pinch-zoom;
 }
 
 .full-page-carousel-card {
@@ -628,6 +628,7 @@ p {
 
 .carousel-settings {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
@@ -645,6 +646,15 @@ p {
   border: 1px solid #cfd7e3;
   border-radius: 0.5rem;
   font: inherit;
+}
+
+.carousel-options {
+  margin-bottom: 1rem;
+}
+
+.carousel-options summary {
+  cursor: pointer;
+  margin-bottom: 0.75rem;
 }
 
 .vue-virtual-carousel {

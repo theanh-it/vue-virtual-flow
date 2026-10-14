@@ -74,6 +74,143 @@ test('carousel and short feed respond to keyboard navigation', async ({
   expect(errors).toEqual([])
 })
 
+test('carousel drag animates the track and commits after release', async ({
+  page,
+}) => {
+  const errors = failOnPageErrors(page)
+
+  await page.goto('/#/carousel')
+  const carousel = page.getByRole('region', {
+    name: 'Product carousel demo',
+  })
+  const track = carousel.locator('.vue-virtual-carousel__track')
+  const box = await carousel.boundingBox()
+  expect(box).not.toBeNull()
+  if (!box) return
+
+  const startX = box.x + box.width / 2
+  const startY = box.y + box.height / 2
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX - 24, startY, { steps: 4 })
+
+  await expect(page.getByText('Active 1', { exact: true })).toBeVisible()
+  await expect
+    .poll(() => track.evaluate((element) => getComputedStyle(element).transform))
+    .not.toBe('none')
+  expect(await carousel.evaluate((element) => element.scrollLeft)).toBe(0)
+
+  await page.mouse.up()
+  await expect(page.getByText('Active 2', { exact: true })).toBeVisible()
+  await expect
+    .poll(() => track.evaluate((element) => getComputedStyle(element).transform))
+    .toBe('none')
+  expect(await carousel.getByRole('listitem').count()).toBeLessThanOrEqual(7)
+  expect(errors).toEqual([])
+})
+
+test('carousel keeps animating on consecutive swipes', async ({ page }) => {
+  const errors = failOnPageErrors(page)
+  await page.goto('/#/carousel')
+  const carousel = page.getByRole('region', { name: 'Product carousel demo' })
+  const track = carousel.locator('.vue-virtual-carousel__track')
+  const box = await carousel.boundingBox()
+  if (!box) throw new Error('Carousel viewport missing')
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+
+  for (let index = 1; index <= 3; index += 1) {
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x - 24, y, { steps: 4 })
+    await page.mouse.up()
+    await expect.poll(() => track.evaluate((element) =>
+      element.getAnimations().filter((animation) => animation.playState === 'running').length,
+    )).toBe(1)
+    await expect(page.getByText(`Active ${index + 1}`, { exact: true })).toBeVisible()
+    await expect.poll(() => track.evaluate((element) =>
+      getComputedStyle(element).transform,
+    )).toBe('none')
+  }
+  expect(errors).toEqual([])
+})
+
+test('starting another drag preserves the current animated position', async ({ page }) => {
+  await page.goto('/#/carousel')
+  const carousel = page.getByRole('region', { name: 'Product carousel demo' })
+  const track = carousel.locator('.vue-virtual-carousel__track')
+  const box = await carousel.boundingBox()
+  if (!box) throw new Error('Carousel viewport missing')
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x - 24, y, { steps: 4 })
+  await page.mouse.up()
+  const before = await track.evaluate((element) => {
+    const animation = element.getAnimations()[0]
+    animation.pause()
+    animation.currentTime = Number(animation.effect!.getTiming().duration) * 0.2
+    return element.getBoundingClientRect().left
+  })
+
+  await page.mouse.down()
+  const after = await track.evaluate((element) => element.getBoundingClientRect().left)
+  expect(Math.abs(after - before)).toBeLessThan(2)
+  await page.mouse.move(x - 48, y, { steps: 4 })
+  await page.mouse.up()
+  await expect.poll(() => track.evaluate((element) => getComputedStyle(element).transform)).toBe('none')
+})
+
+test('vertical touch over the carousel scrolls the page without horizontal drift', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'CDP touch input is Chromium-specific')
+  const errors = failOnPageErrors(page)
+
+  await page.setViewportSize({ width: 390, height: 600 })
+  await page.goto('/#/carousel')
+  const carousel = page.getByRole('region', {
+    name: 'Product carousel demo',
+  })
+  await carousel.scrollIntoViewIfNeeded()
+  const track = carousel.locator('.vue-virtual-carousel__track')
+  const box = await carousel.boundingBox()
+  expect(box).not.toBeNull()
+  if (!box) return
+
+  const initialScrollY = await page.evaluate(() => window.scrollY)
+  const session = await page.context().newCDPSession(page)
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x, y }],
+  })
+  for (const distance of [20, 45, 75, 110]) {
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: x + 2, y: y - distance }],
+    })
+  }
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  })
+
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(
+    initialScrollY,
+  )
+  await expect(page.getByText('Active 1', { exact: true })).toBeVisible()
+  await expect
+    .poll(() => track.evaluate((element) => getComputedStyle(element).transform))
+    .toBe('none')
+  expect(errors).toEqual([])
+})
+
 test('full-page demo navigates sections and stays virtualized', async ({
   page,
 }) => {
@@ -87,6 +224,7 @@ test('full-page demo navigates sections and stays virtualized', async ({
   await expect(page.getByText(/01\s*\/\s*04/)).toBeVisible()
   await carousel.press('ArrowRight')
   await expect(page.getByText(/02\s*\/\s*04/)).toBeVisible()
+  await expect.poll(() => carousel.locator('.vue-virtual-carousel__track').evaluate((el) => el.getAnimations().length)).toBe(0)
   expect(await carousel.getByRole('listitem').count()).toBeLessThanOrEqual(3)
   await page.mouse.wheel(0, 120)
   await expect(page.getByText('Section 2 of 4')).toBeVisible()

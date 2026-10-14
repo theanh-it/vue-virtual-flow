@@ -178,6 +178,7 @@ function handleCarouselKeydown(event: KeyboardEvent) {
               :items="featuredSlides"
               :slides-per-view="1"
               :slides-to-scroll="1"
+              :native-snap="false"
               :buffer="1"
               :gap="16"
               height="100%"

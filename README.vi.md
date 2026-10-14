@@ -805,7 +805,50 @@ thường tối đa năm slide được mount ở giữa collection.
 | `autoplayDelay` | `number` | `3000` | Thời gian chờ giữa các lần tự động chuyển, tính bằng mili giây; giá trị dưới `1` được giới hạn và giá trị không hữu hạn dùng mặc định. |
 | `autoplayLoop` | `boolean` | `true` | Quay lại slide đầu tiên khi đến cuối. |
 | `pauseOnHover` | `boolean` | `true` | Tạm dừng autoplay khi con trỏ nằm trên carousel. |
+| `mouseDrag` | `boolean` | `true` | Cho phép giữ và kéo bằng nút chuột trái để chuyển slide trên máy tính. |
+| `dragThreshold` | `number` | `8` | Khoảng di chuyển con trỏ để nhận diện và commit thao tác kéo, tính bằng pixel. |
+| `momentum` | `boolean` | `true` | Chiếu vận tốc lúc thả thành quán tính rồi giảm tốc về slide đích. |
+| `settleDuration` | `number` | `250` | Thời lượng nền của animation drag/loop; `0` chuyển tức thì. Cuộn native qua API vẫn dùng tham số `behavior`. |
+| `nativeSnap` | `boolean` | `true` | Dùng CSS snap cho wheel/API. Đặt `false` khi lồng trong container có snap để căn slide bằng bộ điều khiển chuyển động. Loop luôn dùng cơ chế này. |
+| `autoWidth` | `boolean` | `false` | Đo chiều rộng riêng của từng slide; nội dung slot cần có chiều rộng xác định. Thay thế `slidesPerView` khi tính chiều rộng. |
+| `estimatedItemWidth` | `number` | `240` | Chiều rộng ước lượng cho slide chưa được mount khi bật `autoWidth`. |
+| `rtl` | `boolean` | `false` | Layout phải sang trái, bao gồm drag, native scroll và phím mũi tên. |
+| `loop` | `boolean` | `false` | Loop liên tục theo hai hướng, độc lập với `autoplayLoop`. Tự tắt khi toàn bộ item vừa viewport. |
+| `keepAlive` | `boolean` | `false` | Giữ instance và state cục bộ của slide đã xem trong cache giới hạn. |
+| `maxCachedItems` | `number` | `20` | Số slide cache/pin ngoài vùng render tối đa; không tính slide đang hiển thị/buffer và một slide có focus. |
+| `pinnedIndexes` | `readonly number[]` | `[]` | Giữ các index này mounted ngay cả khi `keepAlive=false`; dùng ngân sách cache ngoài vùng render. |
 | `responsive` | `ResponsiveBreakpoint[]` | `undefined` | Ghi đè số slide hiển thị, bước cuộn và khoảng cách theo breakpoint chiều rộng container. |
+
+Thao tác cảm ứng có khóa hướng: vuốt dọc tiếp tục cuộn trang, còn vuốt ngang
+di chuyển carousel và tự căn vào slide gần nhất. Trong lúc kéo, track di chuyển
+bằng `translate3d` và `activeIndex` được giữ nguyên tới khi animation drag kết thúc.
+Vùng render và `inViewport` chỉ cập nhật khi slide đi vào hoặc ra khỏi vùng nhìn.
+Khi thả nhanh, track tiếp tục theo vận tốc lúc thả rồi
+giảm tốc về 0, với quán tính giới hạn tối đa hai slide thêm. Giữ tay trước khi
+thả sẽ bỏ qua quán tính. Kéo ngang từ ngưỡng `dragThreshold` sẽ chuyển một slide ngay cả
+khi chưa đi qua nửa chiều rộng slide.
+
+Button và link giữ hành vi click bình thường. Input và phần tử có
+`data-carousel-no-drag` không bắt đầu drag; input giữ hành vi phím mũi tên riêng.
+Wheel/trackpad ngắt animation tại vị trí đang hiển thị.
+
+`autoWidth` dùng `ResizeObserver`, vị trí cộng dồn và binary search. Slide chưa
+mount dùng chiều rộng ước lượng, nên bước nhảy xa có thể được tinh chỉnh sau khi
+đo. Kết quả đo muộn được áp dụng khi drag kết thúc để giữ slide đang chọn. Nội dung
+slot cần có chiều rộng rõ ràng, ví dụ `<ProductCard :style="{ width: item.width + 'px' }" />`.
+
+`keepAlive` giữ state của input/component tới khi bị loại khỏi cache LRU. Chỉ nhóm
+slide khi chuyển động dừng mới cập nhật độ gần đây; frame trung gian không đẩy state
+của slide đích ra khỏi cache. Slide cache ngoài vùng render bị ẩn và inert.
+`pinnedIndexes` giữ media đang chạy; dùng `inViewport` để quyết định pause media.
+State cần tồn tại lâu dài vẫn nên lưu bên ngoài theo `itemKey` ổn định.
+
+`loop` di chuyển các slide có key quanh chu kỳ hiện tại, không tạo instance trùng.
+`autoplayLoop` chỉ quay về đầu khi không bật loop liên tục. Demo tắt tải thêm khi
+bật loop để biên collection cố định. Loop dùng cùng bộ điều khiển chuyển động để
+căn slide sau khi wheel dừng, tránh native snap bám theo node vừa đổi chu kỳ.
+Component vẫn hỗ trợ `load-more`. Thay đổi
+dữ liệu hoặc layout sẽ hủy chuyển động hiện tại và căn lại index đang chọn.
 
 #### Cấu hình responsive
 
@@ -837,7 +880,7 @@ Trường bị bỏ qua dùng prop gốc, không kế thừa từ breakpoint kh�
 
 | Slot | Scope | Mô tả |
 | --- | --- | --- |
-| `default` | `{ item, index, active, visible }` | Render từng slide đang mount. |
+| `default` | `{ item, index, active, visible, inViewport }` | `active`/`visible` theo nhóm slide đã chọn; `inViewport` theo vùng nhìn thực tế trong lúc di chuyển. |
 | `empty` | không có | Render khi `items` rỗng. |
 
 #### Events

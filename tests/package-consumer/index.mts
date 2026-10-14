@@ -2,8 +2,10 @@ import VueVirtualScroll, {
   DynamicVirtualScroll,
   VirtualList,
   VirtualScroll,
+  VirtualCarousel,
   WindowGirdVirtualScroll,
   type VirtualListProps,
+  type VirtualCarouselProps,
   type VirtualScrollExpose,
   type VirtualScrollProps,
   type WindowGirdVirtualScrollProps,
@@ -23,6 +25,20 @@ const props: VirtualScrollProps<Row> = {
   itemKey: 'id',
 }
 const exposed: VirtualScrollExpose | undefined = undefined
+const carouselProps: VirtualCarouselProps<Row> = {
+  items: props.items,
+  autoWidth: true,
+  estimatedItemWidth: 240,
+  rtl: true,
+  loop: true,
+  keepAlive: true,
+  maxCachedItems: 5,
+  pinnedIndexes: [0],
+  dragThreshold: 8,
+  momentum: true,
+  settleDuration: 250,
+  nativeSnap: false,
+}
 const simpleProps: VirtualListProps<Row> = {
   items: [{ id: 1, label: 'one' }],
 }
@@ -36,6 +52,8 @@ const gridProps: WindowGirdVirtualScrollProps<Row> = {
 
 void [
   plugin,
+  carouselProps,
+  VirtualCarousel,
   props,
   simpleProps,
   exposed,

@@ -1,5 +1,7 @@
 import VueVirtualScroll, {
   VirtualScroll,
+  VirtualCarousel,
+  type VirtualCarouselProps,
   WindowGirdVirtualScroll,
   type VirtualScrollProps,
   type WindowGirdVirtualScrollProps,
@@ -11,6 +13,12 @@ interface Row {
 }
 
 const plugin: Plugin = VueVirtualScroll
+const carouselProps: VirtualCarouselProps<Row> = {
+  items: [{ id: 1 }], loop: true, rtl: true, autoWidth: true,
+  keepAlive: true, maxCachedItems: 4, pinnedIndexes: [0],
+  dragThreshold: 8, momentum: false, settleDuration: 0,
+  nativeSnap: false,
+}
 const props: VirtualScrollProps<Row> = {
   items: [{ id: 1 }],
   itemSize: 40,
@@ -23,4 +31,4 @@ const gridProps: WindowGirdVirtualScrollProps<Row> = {
   columns: 2,
 }
 
-void [plugin, props, gridProps, VirtualScroll, WindowGirdVirtualScroll]
+void [plugin, props, gridProps, carouselProps, VirtualCarousel, VirtualScroll, WindowGirdVirtualScroll]

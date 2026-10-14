@@ -15,6 +15,35 @@ const items: TestItem[] = Array.from({ length: 100 }, (_, index) => ({
 const TestShortMediaFeed = ShortMediaFeed as Component
 
 describe('ShortMediaFeed', () => {
+  it('waits for a CSS viewport height before mounting snap targets', async () => {
+    let resizeCallback: ResizeObserverCallback | undefined
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    const wrapper = mount(TestShortMediaFeed, {
+      props: { items, height: 'fill', itemKey: 'id' },
+    })
+    try {
+      expect(wrapper.findAll('.vue-short-media-feed__item')).toHaveLength(0)
+      const viewport = wrapper.get('.vue-short-media-feed').element
+      Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 720 })
+      resizeCallback?.([], {} as ResizeObserver)
+      await nextTick()
+      await nextTick()
+      expect(wrapper.findAll('.vue-short-media-feed__item')).toHaveLength(2)
+      expect(wrapper.get('[aria-current="true"]').attributes('style')).toContain('height: 720px')
+      expect(viewport.scrollTop).toBe(0)
+      expect(wrapper.emitted('update:activeIndex')).toBeUndefined()
+    } finally {
+      wrapper.unmount()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('only mounts the active item and its buffer', () => {
     const wrapper = mount(TestShortMediaFeed, {
       props: {

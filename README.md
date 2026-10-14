@@ -805,7 +805,55 @@ five slides are normally mounted in the middle of the collection.
 | `autoplayDelay` | `number` | `3000` | Delay in milliseconds between automatic transitions; values below `1` are clamped and non-finite values use the default. |
 | `autoplayLoop` | `boolean` | `true` | Returns to the first slide when reaching the end. |
 | `pauseOnHover` | `boolean` | `true` | Pauses autoplay when the carousel is hovered. |
+| `mouseDrag` | `boolean` | `true` | Enables click-and-drag navigation with the primary mouse button. |
+| `dragThreshold` | `number` | `8` | Pointer movement in pixels required to recognize and commit a drag. |
+| `momentum` | `boolean` | `true` | Projects release velocity and decelerates into the destination. |
+| `settleDuration` | `number` | `250` | Base duration in milliseconds for drag/loop settling; `0` makes it instant. Native API scrolling still uses its `behavior` argument. |
+| `nativeSnap` | `boolean` | `true` | Uses native CSS snap for wheel/API scrolling. Set to `false` inside another snap container to settle with the motion controller instead. Loop always uses controlled settling. |
+| `autoWidth` | `boolean` | `false` | Measures each slide's intrinsic width; set the width of the slot content. Overrides `slidesPerView` for sizing. |
+| `estimatedItemWidth` | `number` | `240` | Estimated width in pixels for unmounted slides in `autoWidth` mode. |
+| `rtl` | `boolean` | `false` | Right-to-left layout, pointer movement, native scrolling, and arrow keys. |
+| `loop` | `boolean` | `false` | Continuous looping in either direction, separate from `autoplayLoop`. Disabled when all items fit in the viewport. |
+| `keepAlive` | `boolean` | `false` | Retains recently viewed slide instances and their local state in a bounded cache. |
+| `maxCachedItems` | `number` | `20` | Maximum additional offscreen cached/pinned slides. Visible/buffered slides and one focused slide are not counted. |
+| `pinnedIndexes` | `readonly number[]` | `[]` | Slide indices to retain even with `keepAlive=false`; consumes the offscreen cache budget. |
 | `responsive` | `ResponsiveBreakpoint[]` | `undefined` | Overrides slide count, scroll step, and gap at container-width breakpoints. |
+
+Touch gestures use directional locking: vertical gestures continue scrolling the
+page, while horizontal gestures move the carousel and snap to the nearest slide.
+While dragging, the track moves with compositor-friendly `translate3d` and the
+selected `activeIndex` remains unchanged until drag settling finishes. The render
+window and `inViewport` update only when slides enter or leave view. A fast release
+continues with the release velocity and decelerates to rest, with momentum limited
+to two extra slides. Holding before release disables this momentum. A deliberate
+horizontal drag of at least `dragThreshold` pixels commits one slide even when it does not cross the
+slide midpoint.
+
+Buttons and links keep their normal click behavior. Form fields and
+`data-carousel-no-drag` descendants do not start dragging; form fields also keep
+their own arrow-key behavior. Wheel/trackpad input interrupts an active animation
+at its displayed position.
+
+`autoWidth` uses `ResizeObserver`, cumulative offsets, and binary search. Widths
+of slides not yet mounted are estimates, so distant jumps may be refined when
+those slides are first measured. Late measurements are applied after dragging
+finishes, preserving the selected slide. Give content a resolvable width, for
+example `<ProductCard :style="{ width: item.width + 'px' }" />`.
+
+`keepAlive` retains local input/component state until LRU eviction. Only settled
+views update cache recency; intermediate frames do not evict the destination's
+state. Cached offscreen slides are hidden and inert. Use `pinnedIndexes` to retain
+playing media explicitly; pause media with the slot's `inViewport` flag. Persistent
+state should still be stored outside slides by a stable `itemKey`.
+
+`loop` repositions each keyed slide around the current cycle without creating
+duplicate component instances. `autoplayLoop` only rewinds a non-looping carousel.
+Loop mode uses the same motion controller to settle wheel input after it stops,
+instead of relying on native snap points that change during cycle recentering.
+The demo disables incremental loading while continuous loop is enabled so that
+the collection's boundaries remain fixed. The component still supports
+`load-more`; changing data or geometry cancels the current transition and realigns
+the selected index.
 
 #### Responsive configuration
 
@@ -837,7 +885,7 @@ the base props, not to another breakpoint.
 
 | Slot | Scope | Description |
 | --- | --- | --- |
-| `default` | `{ item, index, active, visible }` | Renders each mounted slide. |
+| `default` | `{ item, index, active, visible, inViewport }` | `active`/`visible` describe the selected group; `inViewport` reflects actual overlap during motion. |
 | `empty` | none | Rendered when `items` is empty. |
 
 #### Events

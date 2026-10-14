@@ -101,7 +101,9 @@ const endIndex = computed(() =>
   ),
 )
 const visibleItems = computed(() =>
-  props.items
+  // Do not register zero-sized snap targets before a CSS height is measured.
+  // WebKit can retain the second target at scrollTop=0 and jump to it on resize.
+  (viewportHeight.value > 0 ? props.items : [])
     .slice(startIndex.value, endIndex.value)
     .map((item, offset) => ({
       item,

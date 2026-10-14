@@ -125,8 +125,26 @@ export interface VirtualCarouselProps<T> {
   autoplayDelay?: number
   autoplayLoop?: boolean
   pauseOnHover?: boolean
+  mouseDrag?: boolean
+  dragThreshold?: number
+  momentum?: boolean
+  settleDuration?: number
+  /** Disable native snap for nested snap containers; the motion controller settles instead. */
+  nativeSnap?: boolean
+  autoWidth?: boolean
+  estimatedItemWidth?: number
+  rtl?: boolean
+  /** Continuous looping; distinct from autoplayLoop's rewind behavior. */
+  loop?: boolean
+  keepAlive?: boolean
+  /** Maximum additional off-screen slides retained by keepAlive. */
+  maxCachedItems?: number
+  /** Slides to retain, capped by maxCachedItems. */
+  pinnedIndexes?: readonly number[]
   responsive?: ResponsiveBreakpoint[]
 }
+
+export type CarouselInteractionPhase = 'idle' | 'pending' | 'dragging' | 'settling' | 'committing'
 
 export interface ResponsiveBreakpoint {
   breakpoint: number

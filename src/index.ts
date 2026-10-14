@@ -37,6 +37,7 @@ export {
   WindowGirdVirtualScroll,
 }
 export type {
+  CarouselInteractionPhase,
   ChatVirtualScrollExpose,
   ChatVirtualScrollProps,
   DynamicVirtualScrollProps,

@@ -82,6 +82,7 @@
 }
 
 .vue-virtual-carousel {
+  contain: layout paint;
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -92,7 +93,7 @@
   overflow-anchor: none;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  touch-action: pan-x;
+  touch-action: pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -100,7 +101,27 @@
   display: none;
 }
 
+.vue-virtual-carousel--mouse-drag {
+  cursor: grab;
+}
+
+/* Loop recentering moves keyed snap targets by a whole cycle. Let the shared
+   motion controller settle instead of letting native snap follow those nodes. */
+.vue-virtual-carousel--controlled {
+  scroll-snap-type: none;
+}
+
+.vue-virtual-carousel--dragging {
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+.vue-virtual-carousel--mouse-drag.vue-virtual-carousel--dragging {
+  cursor: grabbing;
+}
+
 .vue-virtual-carousel__track {
+  position: relative;
   display: flex;
   align-items: stretch;
   width: max-content;
@@ -121,6 +142,7 @@
 }
 
 .vue-virtual-carousel__spacer {
+  position: absolute;
   flex-grow: 0;
   flex-shrink: 0;
   width: 0;
