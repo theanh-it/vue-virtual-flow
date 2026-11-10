@@ -16,8 +16,9 @@ const autoplayDelay = ref(3000)
 const autoplayLoop = ref(true)
 const pauseOnHover = ref(true)
 const mouseDrag = ref(true)
+const mouseDragMode = ref<'drag' | 'snap'>('snap')
 const momentum = ref(true)
-const dragThreshold = ref(8)
+const dragThreshold = ref(4)
 const settleDuration = ref(250)
 const nativeSnap = ref(true)
 const autoWidth = ref(false)
@@ -63,6 +64,8 @@ async function loadMore() {
           Showing from slide {{ activeIndex + 1 }}. {{ slides.length }} items
           loaded.
         </p>
+        <p v-if="mouseDragMode === 'snap'">Press and drag {{ dragThreshold }}px to change one slide immediately, without releasing the mouse.</p>
+        <p v-else>Drag at least {{ dragThreshold }}px, then release to change slides.</p>
       </div>
 
       <div class="carousel-settings">
@@ -77,6 +80,17 @@ async function loadMore() {
         <label>
           <input v-model="mouseDrag" type="checkbox" />
           Mouse Drag
+        </label>
+        <label>
+          Mouse drag mode
+          <select v-model="mouseDragMode">
+            <option value="snap">Snap on drag</option>
+            <option value="drag">Follow pointer</option>
+          </select>
+        </label>
+        <label>
+          Drag threshold (px)
+          <input v-model.number="dragThreshold" type="number" min="1" max="50" step="1" />
         </label>
         <label>
           <input v-model="autoplay" type="checkbox" />
@@ -101,7 +115,6 @@ async function loadMore() {
       <summary>Advanced options</summary>
       <div class="carousel-settings">
         <label><input v-model="momentum" type="checkbox" />Momentum</label>
-        <label>Drag threshold (px)<input v-model.number="dragThreshold" type="number" min="1" max="50" /></label>
         <label>Settle duration (ms)<input v-model.number="settleDuration" type="number" min="0" max="1000" /></label>
         <label><input v-model="nativeSnap" type="checkbox" />Native snap</label>
         <label><input v-model="autoWidth" type="checkbox" />Auto width</label>
@@ -131,6 +144,7 @@ async function loadMore() {
       :autoplay-loop="autoplayLoop"
       :pause-on-hover="pauseOnHover"
       :mouse-drag="mouseDrag"
+      :mouse-drag-mode="mouseDragMode"
       :momentum="momentum"
       :drag-threshold="dragThreshold"
       :settle-duration="settleDuration"

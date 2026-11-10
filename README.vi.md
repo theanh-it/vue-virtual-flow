@@ -839,6 +839,7 @@ thường tối đa năm slide được mount ở giữa collection.
 | `autoplayLoop` | `boolean` | `true` | Quay lại slide đầu tiên khi đến cuối. |
 | `pauseOnHover` | `boolean` | `true` | Tạm dừng autoplay khi con trỏ nằm trên carousel. |
 | `mouseDrag` | `boolean` | `true` | Cho phép giữ và kéo bằng nút chuột trái để chuyển slide trên máy tính. |
+| `mouseDragMode` | `'drag' \| 'snap'` | `'drag'` | `drag` kéo theo con trỏ tới khi thả. `snap` bắt đầu chuyển một slide ngay khi kéo chuột ngang đủ `dragThreshold`, tối đa một lần mỗi lần nhấn. |
 | `dragThreshold` | `number` | `8` | Khoảng di chuyển con trỏ để nhận diện và commit thao tác kéo, tính bằng pixel. |
 | `momentum` | `boolean` | `true` | Chiếu vận tốc lúc thả thành quán tính rồi giảm tốc về slide đích. |
 | `settleDuration` | `number` | `250` | Thời lượng nền của animation drag/loop; `0` chuyển tức thì. Cuộn native qua API vẫn dùng tham số `behavior`. |
@@ -860,6 +861,10 @@ Khi thả nhanh, track tiếp tục theo vận tốc lúc thả rồi
 giảm tốc về 0, với quán tính giới hạn tối đa hai slide thêm. Giữ tay trước khi
 thả sẽ bỏ qua quán tính. Kéo ngang từ ngưỡng `dragThreshold` sẽ chuyển một slide ngay cả
 khi chưa đi qua nửa chiều rộng slide.
+
+Để chuyển ngay khi kéo chuột nhẹ, dùng `mouse-drag-mode="snap"` và
+`:drag-threshold="4"`. Animation bắt đầu và `activeIndex` cập nhật trước khi
+thả chuột; muốn chuyển tiếp cần thả rồi nhấn lại. Cảm ứng và bút vẫn căn slide khi thả.
 
 Button và link giữ hành vi click bình thường. Input và phần tử có
 `data-carousel-no-drag` không bắt đầu drag; input giữ hành vi phím mũi tên riêng.

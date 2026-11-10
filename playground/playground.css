@@ -640,12 +640,17 @@ p {
   font-weight: 700;
 }
 
-.carousel-settings input {
+.carousel-settings input,
+.carousel-settings select {
   width: 5rem;
   padding: 0.6rem;
   border: 1px solid #cfd7e3;
   border-radius: 0.5rem;
   font: inherit;
+}
+
+.carousel-settings select {
+  width: auto;
 }
 
 .carousel-options {

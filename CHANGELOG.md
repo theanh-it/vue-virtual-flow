@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-10
+
+### Added
+- **VirtualCarousel**: Add `mouseDragMode="snap"` to move one slide as soon as the mouse crosses `dragThreshold`, enabled in the playground with a 4px threshold
+
 ## [0.1.0] - 2026-10-14
 
 ### Added

@@ -841,6 +841,7 @@ five slides are normally mounted in the middle of the collection.
 | `autoplayLoop` | `boolean` | `true` | Returns to the first slide when reaching the end. |
 | `pauseOnHover` | `boolean` | `true` | Pauses autoplay when the carousel is hovered. |
 | `mouseDrag` | `boolean` | `true` | Enables click-and-drag navigation with the primary mouse button. |
+| `mouseDragMode` | `'drag' \| 'snap'` | `'drag'` | `drag` follows the pointer until release. `snap` starts moving one slide as soon as horizontal mouse movement reaches `dragThreshold`, once per press. |
 | `dragThreshold` | `number` | `8` | Pointer movement in pixels required to recognize and commit a drag. |
 | `momentum` | `boolean` | `true` | Projects release velocity and decelerates into the destination. |
 | `settleDuration` | `number` | `250` | Base duration in milliseconds for drag/loop settling; `0` makes it instant. Native API scrolling still uses its `behavior` argument. |
@@ -863,6 +864,11 @@ continues with the release velocity and decelerates to rest, with momentum limit
 to two extra slides. Holding before release disables this momentum. A deliberate
 horizontal drag of at least `dragThreshold` pixels commits one slide even when it does not cross the
 slide midpoint.
+
+For immediate mouse navigation, use `mouse-drag-mode="snap"` with
+`:drag-threshold="4"`. The transition starts and `activeIndex` updates before
+mouse release; further movement is ignored until the next press. Touch and pen
+gestures still settle on release.
 
 Buttons and links keep their normal click behavior. Form fields and
 `data-carousel-no-drag` descendants do not start dragging; form fields also keep

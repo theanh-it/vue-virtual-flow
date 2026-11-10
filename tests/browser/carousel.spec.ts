@@ -65,6 +65,7 @@ test('autoplay continues for multiple steps while hovered when pauseOnHover is o
 
 test('wheel cancels settling instead of returning to the old animation target', async ({ page }) => {
   const carousel = await openCarousel(page)
+  await page.getByRole('combobox', { name: 'Mouse drag mode', exact: true }).selectOption('drag')
   const box = await carousel.boundingBox()
   if (!box) throw new Error('Carousel missing')
   const x = box.x + box.width / 2, y = box.y + box.height / 2
@@ -192,6 +193,7 @@ test('continuous loop crosses both boundaries without duplicated item instances'
 
 test('inViewport changes during drag before activeIndex commits', async ({ page }) => {
   const carousel = await openCarousel(page)
+  await page.getByRole('combobox', { name: 'Mouse drag mode', exact: true }).selectOption('drag')
   const box = await carousel.boundingBox()
   if (!box) throw new Error('Carousel missing')
   const step = await carousel.locator('[data-carousel-index="1"]').evaluate((el) =>
@@ -204,4 +206,32 @@ test('inViewport changes during drag before activeIndex commits', async ({ page 
   await expect(carousel.locator('[data-carousel-index="3"] article')).toHaveAttribute('data-in-viewport', 'true')
   await expect(page.getByText('Active 1', { exact: true })).toBeVisible()
   await page.mouse.up()
+})
+
+test('mouse snap changes one slide before release and suppresses the resulting click', async ({ page }) => {
+  const carousel = await openCarousel(page)
+  await expect(page.getByRole('combobox', { name: 'Mouse drag mode', exact: true })).toHaveValue('snap')
+  const button = carousel.getByRole('button', { name: 'Select slide 1', exact: true })
+  await button.scrollIntoViewIfNeeded()
+  const box = await button.boundingBox()
+  if (!box) throw new Error('Button missing')
+  const x = box.x + box.width / 2, y = box.y + box.height / 2
+  const track = carousel.locator('.vue-virtual-carousel__track')
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x - 2, y)
+  await expect(page.getByText('Active 1', { exact: true })).toBeVisible()
+  await page.mouse.move(x - 4, y)
+  await expect(page.getByText('Active 2', { exact: true })).toBeVisible()
+  await expect.poll(() => track.evaluate((el) => el.getAnimations().length)).toBe(0)
+  await page.mouse.move(x - 100, y)
+  await expect(page.getByText('Active 2', { exact: true })).toBeVisible()
+  await page.mouse.up()
+  await expect(page.getByText(/^Selected slide/)).toHaveCount(0)
+  await expect(page.getByText('Active 2', { exact: true })).toBeVisible()
+  await page.mouse.down()
+  await page.mouse.move(x - 104, y)
+  await expect(page.getByText('Active 3', { exact: true })).toBeVisible()
+  await page.mouse.up()
+  await expect.poll(() => track.evaluate((el) => el.getAnimations().length)).toBe(0)
 })

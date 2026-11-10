@@ -7,6 +7,7 @@ interface CarouselInteractionOptions {
   track: () => HTMLElement | undefined
   rtl: () => boolean
   mouseDrag: () => boolean
+  mouseDragMode: () => 'drag' | 'snap'
   nativeSnap: () => boolean
   dragThreshold: () => number
   momentum: () => boolean
@@ -22,8 +23,10 @@ interface CarouselInteractionOptions {
 
 export function useCarouselInteraction(options: CarouselInteractionOptions) {
   const phase = ref<CarouselInteractionPhase>('idle')
-  const busy = computed(() => phase.value !== 'idle')
-  const dragging = computed(() => phase.value === 'dragging')
+  const pointerActive = ref(false)
+  const pointerSnapped = ref(false)
+  const busy = computed(() => phase.value !== 'idle' || pointerActive.value)
+  const dragging = computed(() => phase.value === 'dragging' || pointerSnapped.value)
   const transformed = ref(false)
   let pointerId: number | undefined
   let pointerType = ''
@@ -112,6 +115,8 @@ export function useCarouselInteraction(options: CarouselInteractionOptions) {
   function releasePointer() {
     const id = pointerId
     pointerId = undefined
+    pointerActive.value = false
+    pointerSnapped.value = false
     const element = options.viewport()
     if (id !== undefined && element?.hasPointerCapture?.(id)) element.releasePointerCapture(id)
     window.removeEventListener('pointermove', handlePointerMove)
@@ -258,6 +263,7 @@ export function useCarouselInteraction(options: CarouselInteractionOptions) {
     nativeTarget = undefined
     phase.value = 'pending'
     pointerId = event.pointerId
+    pointerActive.value = true
     pointerType = event.pointerType
     startX = lastX = event.clientX
     startY = event.clientY
@@ -276,11 +282,17 @@ export function useCarouselInteraction(options: CarouselInteractionOptions) {
   function handlePointerMove(event: PointerEvent) {
     if (pointerId !== event.pointerId || event === lastMove) return
     lastMove = event
+    if (pointerSnapped.value) {
+      if (event.cancelable) event.preventDefault()
+      return
+    }
     const deltaX = event.clientX - startX
     const deltaY = event.clientY - startY
     const threshold = Number.isFinite(options.dragThreshold()) ? Math.max(1, options.dragThreshold()) : 8
+    const snapOnMove = pointerType === 'mouse' && options.mouseDragMode() === 'snap'
     if (phase.value === 'pending') {
       if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < threshold) return
+      if (snapOnMove && Math.abs(deltaX) < threshold) return
       if (pointerType !== 'mouse' && Math.abs(deltaY) >= Math.abs(deltaX)) {
         cancel()
         return
@@ -292,6 +304,15 @@ export function useCarouselInteraction(options: CarouselInteractionOptions) {
     if (phase.value !== 'dragging') return
     if (event.cancelable) event.preventDefault()
     suppressClick = true
+    if (snapOnMove) {
+      pointerSnapped.value = true
+      const travelDirection = -Math.sign(deltaX) * direction()
+      const target = options.target(options.indexAt(startPosition) + travelDirection, startPosition, travelDirection)
+      const index = options.indexAt(target)
+      options.onCommit(index)
+      settle(index, target, 0)
+      return
+    }
     const elapsed = event.timeStamp - lastTime
     if (elapsed > 0 && elapsed <= 80) {
       const speed = Math.max(-2.5, Math.min(2.5, (event.clientX - lastX) / elapsed))
@@ -322,8 +343,14 @@ export function useCarouselInteraction(options: CarouselInteractionOptions) {
   function finishPointer(event?: PointerEvent, cancelled = false) {
     if (pointerId === undefined || (event && pointerId !== event.pointerId)) return
     const wasDragging = phase.value === 'dragging'
+    const wasSnapped = pointerSnapped.value
     const heldAnimation = offset !== 0
     releasePointer()
+    if (wasSnapped) {
+      if (clickTimer !== undefined) clearTimeout(clickTimer)
+      clickTimer = setTimeout(() => { suppressClick = false }, 0)
+      return
+    }
     if (frame !== undefined) cancelAnimationFrame(frame)
     frame = undefined
     if (!wasDragging && !heldAnimation) {
@@ -393,7 +420,7 @@ export function useCarouselInteraction(options: CarouselInteractionOptions) {
   })
 
   return {
-    phase, busy, dragging, transformed, read, write, cancel, commit, navigate, displayedPosition,
+    phase, busy, dragging, pointerActive, transformed, read, write, cancel, commit, navigate, displayedPosition,
     handleScroll, handlePointerDown, handlePointerMove, handlePointerUp,
     handlePointerCancel, handleLostPointerCapture, handleClick, handleWheel, handleDragStart,
   }

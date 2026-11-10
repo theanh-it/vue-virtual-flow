@@ -378,6 +378,71 @@ describe('VirtualCarousel', () => {
     })
   })
 
+  it.each([false, true])('snaps once before mouse release with RTL %s', async (rtl) => {
+    const wrapper = mount(TestVirtualCarousel, {
+      props: { items, rtl, mouseDragMode: 'snap', dragThreshold: 4, settleDuration: 0 },
+    })
+    await setViewportWidth(wrapper, 320)
+    const viewport = wrapper.get('.vue-virtual-carousel')
+    const move = (clientX: number, clientY = 100) => viewport.trigger('pointermove', {
+      pointerId: 1, pointerType: 'mouse', clientX, clientY,
+    })
+    const delta = rtl ? 4 : -4
+    await viewport.trigger('pointerdown', { pointerId: 1, pointerType: 'mouse', button: 0, clientX: 200, clientY: 100 })
+    await move(200, 140)
+    await move(200 + delta / 2)
+    expect(wrapper.emitted('change')).toBeUndefined()
+    await move(200 + delta)
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+    await move(200 + delta * 30)
+    await move(200 - delta * 30)
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+    await viewport.trigger('pointerup', { pointerId: 1, pointerType: 'mouse', clientX: 200 - delta * 30 })
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+    await viewport.trigger('pointerdown', { pointerId: 2, pointerType: 'mouse', button: 0, clientX: 200, clientY: 100 })
+    await viewport.trigger('pointermove', { pointerId: 2, pointerType: 'mouse', clientX: 200 - delta, clientY: 100 })
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1], [0]])
+    await viewport.trigger('pointerup', { pointerId: 2, pointerType: 'mouse', clientX: 200 - delta })
+    wrapper.unmount()
+  })
+
+  it('continues the mouse snap animation after an early release', async () => {
+    const wrapper = mount(TestVirtualCarousel, {
+      props: { items, mouseDragMode: 'snap', dragThreshold: 4 },
+    })
+    await setViewportWidth(wrapper, 320)
+    const viewport = wrapper.get('.vue-virtual-carousel')
+    const animation = { cancel: vi.fn(), onfinish: null, oncancel: null } as unknown as Animation
+    const animate = vi.fn(() => animation)
+    wrapper.get('.vue-virtual-carousel__track').element.animate = animate
+    await viewport.trigger('pointerdown', { pointerId: 1, pointerType: 'mouse', button: 0, clientX: 200, clientY: 100 })
+    await viewport.trigger('pointermove', { pointerId: 1, pointerType: 'mouse', clientX: 196, clientY: 100 })
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+    expect(animate).toHaveBeenCalledTimes(1)
+    await viewport.trigger('pointerup', { pointerId: 1, pointerType: 'mouse', clientX: 196, clientY: 100 })
+    expect(animation.cancel).not.toHaveBeenCalled()
+    expect(animate).toHaveBeenCalledTimes(1)
+    animation.onfinish?.call(animation, new Event('finish') as AnimationPlaybackEvent)
+    await nextTick()
+    expect(viewport.element.scrollLeft).toBe(320)
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+    wrapper.unmount()
+  })
+
+  it('keeps touch gestures release-based in mouse snap mode', async () => {
+    const wrapper = mount(TestVirtualCarousel, {
+      props: { items, mouseDragMode: 'snap', dragThreshold: 4, settleDuration: 0 },
+    })
+    await setViewportWidth(wrapper, 320)
+    const viewport = wrapper.get('.vue-virtual-carousel')
+    await viewport.trigger('pointerdown', { pointerId: 1, pointerType: 'touch', clientX: 200, clientY: 100 })
+    await viewport.trigger('pointermove', { pointerId: 1, pointerType: 'touch', clientX: 196, clientY: 100 })
+    expect(wrapper.emitted('change')).toBeUndefined()
+    await viewport.trigger('pointerup', { pointerId: 1, pointerType: 'touch', clientX: 196, clientY: 100 })
+    expect(wrapper.emitted('update:activeIndex')).toEqual([[1]])
+    wrapper.unmount()
+  })
+
   it('commits one slide for a small intentional horizontal swipe', async () => {
     const wrapper = mount(TestVirtualCarousel, {
       props: {

@@ -26,6 +26,7 @@ const props = withDefaults(defineProps<{
   autoplayLoop?: boolean
   pauseOnHover?: boolean
   mouseDrag?: boolean
+  mouseDragMode?: 'drag' | 'snap'
   dragThreshold?: number
   momentum?: boolean
   settleDuration?: number
@@ -42,7 +43,7 @@ const props = withDefaults(defineProps<{
   activeIndex: 0, slidesPerView: 1, slidesToScroll: 1, gap: 0, buffer: 1,
   height: 'auto', itemKey: undefined, ariaLabel: 'Carousel', hasMore: false,
   loading: false, loadMoreThreshold: 2, autoplay: false, autoplayDelay: 3000,
-  autoplayLoop: true, pauseOnHover: true, mouseDrag: true, dragThreshold: 8,
+  autoplayLoop: true, pauseOnHover: true, mouseDrag: true, mouseDragMode: 'drag', dragThreshold: 8,
   momentum: true, settleDuration: 250, nativeSnap: true, autoWidth: false, estimatedItemWidth: 240,
   rtl: false, loop: false, keepAlive: false, maxCachedItems: 20,
   pinnedIndexes: () => [], responsive: undefined,
@@ -209,6 +210,7 @@ function updateCurrentIndex(index: number) {
 const interaction = useCarouselInteraction({
   viewport: () => viewport.value, track: () => track.value,
   rtl: () => props.rtl, mouseDrag: () => props.mouseDrag,
+  mouseDragMode: () => props.mouseDragMode,
   nativeSnap: () => props.nativeSnap && !looping.value,
   dragThreshold: () => Math.max(1, Number.isFinite(props.dragThreshold) ? props.dragThreshold : 8),
   momentum: () => props.momentum,
@@ -221,7 +223,7 @@ const interaction = useCarouselInteraction({
 const { phase, dragging } = interaction
 const autoplay = useCarouselAutoplay({
   enabled: () => mounted.value && props.autoplay,
-  paused: () => phase.value === 'pending' || phase.value === 'dragging' || phase.value === 'committing' ||
+  paused: () => interaction.pointerActive.value || phase.value === 'pending' || phase.value === 'dragging' || phase.value === 'committing' ||
     (looping.value && phase.value === 'settling') || (hovering.value && props.pauseOnHover),
   delay: () => props.autoplayDelay, count: () => props.items.length,
   atEnd: () => !looping.value && currentIndex.value >= maximumIndex.value,

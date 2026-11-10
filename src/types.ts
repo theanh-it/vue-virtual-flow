@@ -146,6 +146,8 @@ export interface VirtualCarouselProps<T> {
   autoplayLoop?: boolean
   pauseOnHover?: boolean
   mouseDrag?: boolean
+  /** Snap once as soon as the mouse crosses dragThreshold, or follow the pointer until release. */
+  mouseDragMode?: 'drag' | 'snap'
   dragThreshold?: number
   momentum?: boolean
   settleDuration?: number
