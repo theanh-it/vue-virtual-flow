@@ -80,6 +80,7 @@ test('carousel drag animates the track and commits after release', async ({
   const errors = failOnPageErrors(page)
 
   await page.goto('/#/carousel')
+  await page.getByRole('combobox', { name: 'Mouse drag mode', exact: true }).selectOption('drag')
   const carousel = page.getByRole('region', {
     name: 'Product carousel demo',
   })
@@ -172,6 +173,8 @@ test('vertical touch over the carousel scrolls the page without horizontal drift
 
   await page.setViewportSize({ width: 390, height: 600 })
   await page.goto('/#/carousel')
+  // Leave room to scroll down regardless of the demo controls' height.
+  await page.addStyleTag({ content: 'body { padding-bottom: 100vh; }' })
   const carousel = page.getByRole('region', {
     name: 'Product carousel demo',
   })
@@ -182,6 +185,9 @@ test('vertical touch over the carousel scrolls the page without horizontal drift
   if (!box) return
 
   const initialScrollY = await page.evaluate(() => window.scrollY)
+  expect(await page.evaluate(() =>
+    document.documentElement.scrollHeight - window.innerHeight - window.scrollY,
+  )).toBeGreaterThan(110)
   const session = await page.context().newCDPSession(page)
   const x = box.x + box.width / 2
   const y = box.y + box.height / 2
@@ -208,7 +214,9 @@ test('vertical touch over the carousel scrolls the page without horizontal drift
   await expect
     .poll(() => track.evaluate((element) => getComputedStyle(element).transform))
     .toBe('none')
+  expect(await carousel.evaluate((element) => element.scrollLeft)).toBe(0)
   expect(errors).toEqual([])
+  await session.detach()
 })
 
 test('full-page demo navigates sections and stays virtualized', async ({
@@ -276,6 +284,8 @@ test('window list jumps directly and chat remains pinned after append', async ({
 
 test('chat respects size while scrolling up on a portrait mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
+  // Test virtual layout independently of external media loading and resizing.
+  await page.route(/https:\/\//, (route) => route.abort())
   await page.goto('/#/chat')
   const chat = page.getByRole('log', { name: 'Community chat' })
   const rows = chat.locator('.vue-chat-virtual-scroll__item')
